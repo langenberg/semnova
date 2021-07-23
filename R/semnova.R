@@ -29,9 +29,7 @@
 #' lavaan object.
 #' @examples
 #'
-#' set.seed(323412431)
-#'
-#' data <- get_test_data()
+#' data("semnova_test_data", package = "semnova")
 #'
 #' idata  <- expand.grid(A = c("A1", "A2", "A3"), B = c("B1", "B2"))
 #'
@@ -48,7 +46,7 @@
 #' fit_semnova <-
 #'     semnova(
 #'         formula = cbind(A1B1, A2B1, A3B1, A1B2, A2B2, A3B2) ~ 1,
-#'         data = data,
+#'         data = semnova_test_data,
 #'         idata = idata,
 #'         idesign = ~ A * B,
 #'         mmodel = mmodel
@@ -161,6 +159,7 @@ semnova <- function(
                         hypotheses        = hypotheses,
                         covariates        = covariates,
                         groups            = groups,
+                        append            = append,
                         verbose           = verbose,
                         compound_symmetry = compound_symmetry,
                         sphericity        = sphericity,

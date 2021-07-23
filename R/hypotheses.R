@@ -277,7 +277,8 @@ wald <- function(mod, hypothesis) {
 F_value <- function(wald, N, nmeasures) {
     F_value <- wald$stat / wald$df
     df1 <- wald$df
-    df2 <- (N - 1) * nmeasures
+    # df2 <- (N - 1) * nmeasures
+    df2 <- N - df1 ## FIXME: Not sure about this
     F_p_value <- 1 - pf(F_value, df1, df2)
     return(c(
         F_value = F_value,

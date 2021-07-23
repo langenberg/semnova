@@ -1,7 +1,4 @@
-#' Simple data simulation function for test cases.
-#' @export
-#' @importFrom MASS mvrnorm
-#' @param n Integer. Number of cases simulated.
+#' @keywords internal
 get_test_data <- function(n = 100L) {
     vcov <- matrix(0.5, nrow = 6, ncol = 6)
     diag(vcov) <- 1

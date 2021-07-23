@@ -100,6 +100,8 @@ get_sphericity_constraints <- function(mod) {
         }
     }
 
+    constraints <- replicate(length(hypotheses), NA_character_)
+
     # 1. constrain (co)variances of lvs
     for (lhs in 1:nlvs) {
         for (rhs in 1:lhs) {
@@ -127,8 +129,8 @@ get_sphericity_constraints <- function(mod) {
                     lhs   = lvs[lhs],
                     op    = "~~",
                     rhs   = lvs[rhs],
-                    free  = 1,
-                    value = NA
+                    free  = 0,
+                    value = paste0(".vcov_pi_", lhs, "_", rhs)
                 )
             } else if (in_hypothesis %in% sphericity) {
                 ## lhs and rhs DO appear in the same hypothesis
@@ -141,8 +143,21 @@ get_sphericity_constraints <- function(mod) {
                         op    = "~~",
                         rhs   = lvs[rhs],
                         free  = 0,
-                        value = paste0("sigma_", in_hypothesis)
+                        value = paste0(".vcov_pi_", lhs, "_", rhs)
                     )
+                    if (is.na(constraints[in_hypothesis])) {
+                        constraints[in_hypothesis] <- paste0(".vcov_pi_", lhs, "_", rhs)
+                    } else {
+                        mod@constraints <- add_parameter(
+                            mod@constraints,
+                            lhs   = paste0(".vcov_pi_", lhs, "_", rhs),
+                            op    = "==",
+                            rhs   = constraints[in_hypothesis],
+                            free  = 1,
+                            value = NA,
+                            group = 0
+                        )
+                    }
                 } else {
                     # covariances
                     mod@variances <- add_parameter(
@@ -151,7 +166,16 @@ get_sphericity_constraints <- function(mod) {
                         op    = "~~",
                         rhs   = lvs[rhs],
                         free  = 0,
-                        value = 0
+                        value = paste0(".vcov_pi_", lhs, "_", rhs)
+                    )
+                    mod@constraints <- add_parameter(
+                        mod@constraints,
+                        lhs   = paste0(".vcov_pi_", lhs, "_", rhs),
+                        op    = "==",
+                        rhs   = 0,
+                        free  = 1,
+                        value = NA,
+                        group = 0
                     )
                 }
             } else {
@@ -163,8 +187,8 @@ get_sphericity_constraints <- function(mod) {
                     lhs   = lvs[lhs],
                     op    = "~~",
                     rhs   = lvs[rhs],
-                    free  = 1,
-                    value = NA
+                    free  = 0,
+                    value = paste0(".vcov_pi_", lhs, "_", rhs)
                 )
             }
         }
@@ -252,16 +276,34 @@ get_sphericity_constraints2 <- function(mod) {
 get_unconstrainted_cov <- function(mod) {
     dvs <- mod@dvs
     ndvs <- length(dvs)
+    lvs <- mod@lvs
+    nlvs <- length(lvs)
 
     # 1. constrain (co)variances of dvs to zero
+
     for (lhs in 1:ndvs) {
         for (rhs in 1:lhs) {
-            mod@variances <- add_parameter(mod@variances,
-                                           lhs   = dvs[lhs],
-                                           op    = "~~",
-                                           rhs   = dvs[rhs],
-                                           free  = 0,
-                                           value = 0)
+            mod@variances <- add_parameter(
+                mod@variances,
+                lhs   = dvs[lhs],
+                op    = "~~",
+                rhs   = dvs[rhs],
+                free  = 0,
+                value = 0
+            ) # value = paste0(".vcov_", lhs, "_", rhs))
+        }
+    }
+
+    for (lhs in 1:nlvs) {
+        for (rhs in 1:lhs) {
+            mod@variances <- add_parameter(
+                mod@variances,
+                lhs   = lvs[lhs],
+                op    = "~~",
+                rhs   = lvs[rhs],
+                free  = 0,
+                value = paste0(".vcov_pi_", lhs, "_", rhs)
+            )
         }
     }
 

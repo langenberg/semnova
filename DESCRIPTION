@@ -1,29 +1,40 @@
 Package: semnova
 Type: Package
 Title: Latent Repeated Measures ANOVA
-Version: 0.1-7
+Version: 0.2
 Authors@R: c(person(given = "Benedikt", family = "Langenberg",
                     role  = c("aut", "cre"),
                     email = "benedikt.langenberg@gmail.com"),
              person(given = "Axel", family = "Mayer",
                     role  = "ctb",
-                    email = "axel.mayer@rwth-aachen.de")
+                    email = "axel.mayer@uni-bielefeld.de")
             )
 Author: Benedikt Langenberg [aut, cre], Axel Mayer [ctb]
-Imports: lavaan, Matrix, parallel, MASS, stats, methods
+Imports: 
+    Matrix, 
+    parallel, 
+    MASS, 
+    stats, 
+    methods,
+    vctrs,
+    ggdag,
+    styler
 Suggests: 
     testthat,
     knitr,
     rmarkdown
-Depends: R (>= 3.4.0)
-Description: Latent repeated measures ANOVA (L-RM-ANOVA) is a structural 
-    equation modeling based alternative to traditional repeated measures ANOVA.
-    L-RM-ANOVA extends the latent growth components approach by 
-    Mayer et al. (2012) <doi:10.1080/10705511.2012.713242> and introduces
-    latent variables to repeated measures analysis.
+Depends:
+    R (>= 4.0.0),
+    R6 (>= 2.0.0),
+    tidyverse (>= 1.3.0),
+    lavaan (>= 0.6.9)
+Description: Latent repeated measures ANOVA is a structural 
+    equation modeling based alternative to traditional repeated measures ANOVA 
+    proposed by Langenberg et al. <doi:10.1080/00273171.2020.1803038> allowing
+    to analyse ANOVA designs with latent variables.
 Maintainer: Benedikt Langenberg <benedikt.langenberg@gmail.com>
 License: GPL (>= 2)
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 7.1.0
+RoxygenNote: 7.1.2.9000
 VignetteBuilder: knitr

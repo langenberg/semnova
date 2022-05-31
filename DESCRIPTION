@@ -18,7 +18,10 @@ Imports:
     methods,
     vctrs,
     ggdag,
-    styler
+    styler,
+    ggraph,
+    kableExtra,
+    tidygraph
 Suggests: 
     testthat,
     knitr,

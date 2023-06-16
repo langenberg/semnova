@@ -78,6 +78,31 @@ Lgc <- R6Class(
         },
 
         #' @keywords internal
+        has_latent_dv = function() {
+            any(sapply(private$etas_mmodel, length) > 1L)
+        },
+
+        #' @keywords internal
+        has_latent_covariate = function() {
+            any(sapply(private$covariates_mmodel, length) > 1L)
+        },
+
+        #' @keywords internal
+        has_covariate = function() {
+            length(private$covariates_mmodel) > 0L
+        },
+
+        #' @keywords internal
+        has_within = function() {
+            prod(sapply(private$withins, length)) > 1L
+        },
+
+        #' @keywords internal
+        has_resid_cov = function() {
+            length(private$resid_cov) > 0L
+        },
+
+        #' @keywords internal
         #' @import tidyverse
         is_indicator = function(variables) {
             is_indicator_inner <- function(variable) {
@@ -1822,139 +1847,178 @@ Lgc <- R6Class(
                             label_colour = "black"
                         )
                 } else if ("covariance" == what_internal) {
-                    myplot +
-                        geom_edge_arc(
-                            mapping = aes(
-                                label = label,
-                                label_pos = 0.3,
-                                filter = type == "covariance",
-                                vjust = vjust
-                            ),
-                            label_size = 3,
-                            strength = covariance.strength,
-                            arrow = arrow(
-                                angle = 30,
-                                length = unit(0.3, "cm"),
-                                ends = "both",
-                                type = "closed"
-                            ),
-                            end_cap = circle(0.8, 'cm'),
-                            start_cap = circle(0.8, 'cm'),
-                            label_parse = T,
-                            color = "black",
-                            label_colour = "black"
-                        )
+                    if (private$has_within()) {
+                        myplot +
+                            geom_edge_arc(
+                                mapping = aes(
+                                    label = label,
+                                    label_pos = 0.3,
+                                    filter = type == "covariance",
+                                    vjust = vjust
+                                ),
+                                label_size = 3,
+                                strength = covariance.strength,
+                                arrow = arrow(
+                                    angle = 30,
+                                    length = unit(0.3, "cm"),
+                                    ends = "both",
+                                    type = "closed"
+                                ),
+                                end_cap = circle(0.8, 'cm'),
+                                start_cap = circle(0.8, 'cm'),
+                                label_parse = T,
+                                color = "black",
+                                label_colour = "black"
+                            )
+                    } else {
+                        myplot
+                    }
                 } else if ("resid_var" == what_internal) {
-                    myplot +
-                        geom_edge_arc(
-                            mapping = aes(
-                                label = label,
-                                label_pos = 0.3,
-                                filter = type == "resid_var",
-                                vjust = vjust
-                            ),
-                            label_size = 3,
-                            strength = 0,
-                            arrow = arrow(
-                                angle = 30,
-                                length = unit(0.3, "cm"),
-                                ends = "last",
-                                type = "closed"
-                            ),
-                            end_cap = circle(0.8, 'cm'),
-                            start_cap = circle(0.8, 'cm'),
-                            label_parse = T,
-                            color = "black",
-                            label_colour = "black"
-                        ) +
-                        geom_edge_loop(
-                            mapping = aes(
-                                label = label,
-                                strength = resid_var_left.strength,
-                                direction = resid_var_left.direction,
-                                span = resid_var_left.span,
-                                filter = (type == "resid_var" & is_left),
-                                vjust = vjust
-                            ),
-                            label_size = 3,
-                            arrow = arrow(
-                                angle = 30,
-                                length = unit(0.3, "cm"),
-                                ends = "last",
-                                type = "closed"
-                            ),
-                            end_cap = circle(0.7, 'cm'),
-                            start_cap = circle(0.7, 'cm'),
-                            label_parse = T,
-                            color = "black",
-                            label_colour = "black"
-                        ) +
-                        geom_edge_loop(
-                            mapping = aes(
-                                label = label,
-                                strength = resid_var_right.strength,
-                                direction = resid_var_right.direction,
-                                span = resid_var_right.span,
-                                filter = (type == "resid_var" & !is_left),
-                                vjust = vjust
-                            ),
-                            label_size = 3,
-                            arrow = arrow(
-                                angle = 30,
-                                length = unit(0.3, "cm"),
-                                ends = "last",
-                                type = "closed"
-                            ),
-                            end_cap = circle(0.7, 'cm'),
-                            start_cap = circle(0.7, 'cm'),
-                            label_parse = T,
-                            color = "black",
-                            label_colour = "black"
-                        )
+                    if (private$has_latent_dv()) {
+                        myplot <- myplot +
+                            geom_edge_arc(
+                                mapping = aes(
+                                    label = label,
+                                    label_pos = 0.3,
+                                    filter = type == "resid_var",
+                                    vjust = vjust
+                                ),
+                                label_size = 3,
+                                strength = 0,
+                                arrow = arrow(
+                                    angle = 30,
+                                    length = unit(0.3, "cm"),
+                                    ends = "last",
+                                    type = "closed"
+                                ),
+                                end_cap = circle(0.8, 'cm'),
+                                start_cap = circle(0.8, 'cm'),
+                                label_parse = T,
+                                color = "black",
+                                label_colour = "black"
+                            ) +
+                            geom_edge_loop(
+                                mapping = aes(
+                                    label = label,
+                                    strength = resid_var_left.strength,
+                                    direction = resid_var_left.direction,
+                                    span = resid_var_left.span,
+                                    filter = (type == "resid_var" & is_left),
+                                    vjust = vjust
+                                ),
+                                label_size = 3,
+                                arrow = arrow(
+                                    angle = 30,
+                                    length = unit(0.3, "cm"),
+                                    ends = "last",
+                                    type = "closed"
+                                ),
+                                end_cap = circle(0.7, 'cm'),
+                                start_cap = circle(0.7, 'cm'),
+                                label_parse = T,
+                                color = "black",
+                                label_colour = "black"
+                            )
+                    }
+                    if (private$has_latent_covariate()) {
+                        myplot <- myplot +
+                            geom_edge_arc(
+                                mapping = aes(
+                                    label = label,
+                                    label_pos = 0.3,
+                                    filter = (type == "resid_var" & !is_left),
+                                    vjust = vjust
+                                ),
+                                label_size = 3,
+                                strength = 0,
+                                arrow = arrow(
+                                    angle = 30,
+                                    length = unit(0.3, "cm"),
+                                    ends = "last",
+                                    type = "closed"
+                                ),
+                                end_cap = circle(0.8, 'cm'),
+                                start_cap = circle(0.8, 'cm'),
+                                label_parse = T,
+                                color = "black",
+                                label_colour = "black"
+                            ) +
+                            geom_edge_loop(
+                                mapping = aes(
+                                    label = label,
+                                    strength = resid_var_right.strength,
+                                    direction = resid_var_right.direction,
+                                    span = resid_var_right.span,
+                                    filter = (type == "resid_var" & !is_left),
+                                    vjust = vjust
+                                ),
+                                label_size = 3,
+                                arrow = arrow(
+                                    angle = 30,
+                                    length = unit(0.3, "cm"),
+                                    ends = "last",
+                                    type = "closed"
+                                ),
+                                end_cap = circle(0.7, 'cm'),
+                                start_cap = circle(0.7, 'cm'),
+                                label_parse = T,
+                                color = "black",
+                                label_colour = "black"
+                            )
+                    }
+                    myplot
                 } else if ("resid_cov" == what_internal) {
-                    myplot +
-                        geom_edge_arc(
-                            mapping = aes(
-                                label = label,
-                                label_pos = 0.3,
-                                filter = type == "resid_cov",
-                                vjust = vjust
-                            ),
-                            label_size = 3,
-                            strength = -0.3,
-                            arrow = arrow(
-                                angle = 30,
-                                length = unit(0.3, "cm"),
-                                ends = "last",
-                                type = "closed"
-                            ),
-                            end_cap = circle(0.8, 'cm'),
-                            start_cap = circle(0.8, 'cm'),
-                            label_parse = T,
-                            color = "black",
-                            label_colour = "black"
-                        )
+                    if (private$has_latent_dv() && private$has_resid_cov()) {
+                        myplot +
+                            geom_edge_arc(
+                                mapping = aes(
+                                    label = label,
+                                    label_pos = 0.3,
+                                    filter = type == "resid_cov",
+                                    vjust = vjust
+                                ),
+                                label_size = 3,
+                                strength = -0.3,
+                                arrow = arrow(
+                                    angle = 30,
+                                    length = unit(0.3, "cm"),
+                                    ends = "last",
+                                    type = "closed"
+                                ),
+                                end_cap = circle(0.8, 'cm'),
+                                start_cap = circle(0.8, 'cm'),
+                                label_parse = T,
+                                color = "black",
+                                label_colour = "black"
+                            )
+                    } else {
+                        myplot
+                    }
                 } else if ("regression" == what_internal) {
-                    myplot +
-                        geom_edge_arc(
-                            mapping = aes(
-                                label = label,
-                                label_pos = 0.3,
-                                filter = type %in% "regression",
-                                vjust = vjust
-                            ),
-                            strength = 0,
-                            label_size = 3,
-                            arrow = arrow(
-                                angle = 30,
-                                length = unit(0.3, "cm"),
-                                ends = "last",
-                                type = "closed"
-                            ),
-                            end_cap = circle(0.8, 'cm'),
-                            start_cap = circle(0.8, 'cm'),
-                            label_parse = T
-                        )
+                    if (private$has_covariate()) {
+                        myplot +
+                            geom_edge_arc(
+                                mapping = aes(
+                                    label = label,
+                                    label_pos = 0.3,
+                                    filter = type %in% "regression",
+                                    vjust = vjust
+                                ),
+                                strength = 0,
+                                label_size = 3,
+                                arrow = arrow(
+                                    angle = 30,
+                                    length = unit(0.3, "cm"),
+                                    ends = "last",
+                                    type = "closed"
+                                ),
+                                end_cap = circle(0.8, 'cm'),
+                                start_cap = circle(0.8, 'cm'),
+                                label_parse = T
+                            )
+                    } else {
+                        myplot
+                    }
                 } else if ("measurement" == what_internal) {
                     myplot +
                         geom_edge_arc(

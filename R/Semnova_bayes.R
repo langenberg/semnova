@@ -1,24 +1,21 @@
-#' Semnova class
+#' SemnovaBayes class
 #'
 #' @description Some description
-#' @rdname semnova
+#' @rdname semnova_bayes
 #' @export
 #' @importFrom R6 R6Class
-#' @details \code{semnova()} is a wrapper for the R6 class constructor
-#' \code{Semnova$new()}. See \code{Semnova$new()} below for a list of arguments.
+#' @details \code{semnova_bayes()} is a wrapper for the R6 class constructor
+#' \code{SemnovaBayes$new()}. See \code{SemnovaBayes$new()} below for a list of arguments.
 #'
-Semnova <- R6::R6Class(
-    "Semnova",
+SemnovaBayes <- R6::R6Class(
+    "SemnovaBayes",
     inherit = Lgc,
     private = list(
         withins = list(),
-        within_design = NULL,
         betweens = list(),
-        between_design = NULL,
         manifest_covariates = character(),
-        latent_covariates = list(),
         covariates_description = list(),
-        covariates_design = NULL,
+        latent_covariates = list(),
         indicators = list(),
         id = character(),
         dv = character(),
@@ -28,8 +25,6 @@ Semnova <- R6::R6Class(
         sphericity = list(),
         normalize_contrasts = FALSE,
         input_semnova = list(),
-        model_info = NULL,
-        data_original = NULL,
 
         #' @keywords internal
         get_term_names = function(idesign, idata) {
@@ -42,6 +37,23 @@ Semnova <- R6::R6Class(
         },
 
         #' @keywords internal
+        #' @import tidyverse
+        match_group = function(group, return_group) {
+            idata <- private$parse_between_design(
+                betweens = private$betweens,
+                contrasts_arg = private$contrasts_arg,
+                normalize_contrasts = private$normalize_contrasts
+            )$idata
+
+            group_indices <- sapply(group, function(g) which(g == private$group_labels))
+            groups <- idata[group_indices,,drop = F]
+            groups <- lapply(1:ncol(groups), function(x) paste0(colnames(idata)[x], ": ", groups[,x]))
+            names(groups) <- colnames(idata)
+
+            groups[[return_group]]
+        },
+
+        #' @keywords internal#'
         #' @import tidyverse
         get_facet_formula = function() {
             between <- names(private$betweens)
@@ -67,23 +79,6 @@ Semnova <- R6::R6Class(
 
             form <- paste0(rows, "~", cols)
             as.formula(form)
-        },
-
-        #' @keywords internal
-        #' @import tidyverse
-        match_group = function(group, return_group) {
-            idata <- private$parse_between_design(
-                betweens = private$betweens,
-                contrasts_arg = private$contrasts_arg,
-                normalize_contrasts = private$normalize_contrasts
-            )$idata
-
-            group_indices <- sapply(group, function(g) which(g == private$group_labels))
-            groups <- idata[group_indices,,drop = F]
-            groups <- lapply(1:ncol(groups), function(x) paste0(colnames(idata)[x], ": ", groups[,x]))
-            names(groups) <- colnames(idata)
-
-            groups[[return_group]]
         },
 
         #' @keywords internal
@@ -168,13 +163,6 @@ Semnova <- R6::R6Class(
         },
 
         #' @keywords internal
-        validate_specify = function(call, env = parent.env(environment())) {
-            is_missing <- function(name) {
-                is.null(languageEl(call, name))
-            }
-        },
-
-        #' @keywords internal
         validate_new = function() {
             # validate: 2. covariates ------------------------------------------
 
@@ -248,11 +236,11 @@ Semnova <- R6::R6Class(
 
         #' @keywords internal
         expand_data_covariates = function(
-            data,
-            manifest_covariates,
-            latent_covariates,
-            contrasts_arg,
-            normalize_contrasts
+        data,
+        manifest_covariates,
+        latent_covariates,
+        contrasts_arg,
+        normalize_contrasts
         ) {
             private$parse_covariates(
                 manifest_covariates = manifest_covariates,
@@ -284,11 +272,11 @@ Semnova <- R6::R6Class(
 
         #' @keywords internal
         parse_covariates_with_description = function(
-            manifest_covariates,
-            latent_covariates,
-            description,
-            contrasts_arg,
-            normalize_contrasts
+        manifest_covariates,
+        latent_covariates,
+        description,
+        contrasts_arg,
+        normalize_contrasts
         ) {
             data <- private$get_covariates_idata(description)
             covariates_design <- private$parse_covariates(
@@ -303,12 +291,12 @@ Semnova <- R6::R6Class(
         },
 
         #' @keywords internal
-        parse_covariates_old = function(
-            manifest_covariates = NULL,
-            latent_covariates = NULL,
-            data = NULL,
-            contrasts_arg = list(),
-            normalize_contrasts
+        parse_covariates = function(
+        manifest_covariates = NULL,
+        latent_covariates = NULL,
+        data = NULL,
+        contrasts_arg = list(),
+        normalize_contrasts
         ) {
 
             if (is.null(latent_covariates) && is.null(manifest_covariates)) {
@@ -351,7 +339,7 @@ Semnova <- R6::R6Class(
                 effect_indices_covariates <- attr(b_matrix_covariates, "assign")
 
                 data <- data %>%
-                    select_at(names(data)[!(names(data) %in% manifest_covariates)])
+                    select_at(all_of(names(data)[!(names(data) %in% manifest_covariates)]))
 
                 # b_matrix_covariates <- b_matrix_covariates[,-1,drop=F] %>%
                 #     as_tibble(.name_repair = "universal")
@@ -394,145 +382,7 @@ Semnova <- R6::R6Class(
 
             list(
                 data = data,
-                idata = idata_within,
-                idesign = idesign_within,
-                covariates_mmodel = covariates_mmodel,
-                effect_names_covariates = effect_names_covariates,
-                effect_indices_covariates = effect_indices_covariates
-            )
-        },
 
-        #' @keywords internal
-        parse_covariates = function(
-            manifest_covariates = NULL,
-            latent_covariates = NULL,
-            data = NULL,
-            contrasts_arg = list(),
-            normalize_contrasts
-        ) {
-
-            if (is.null(latent_covariates) && is.null(manifest_covariates)) {
-                c_matrix_covariates <- matrix(1, ncol = 1, nrow = 1)
-                dimnames(c_matrix_covariates) <- list("(Intercept)", "dummy")
-                b_matrix_covariates <- solve(c_matrix_covariates)
-
-                effect_names_covariates <- "Intercept"
-                effect_indices_covariates <- 0
-                attr(b_matrix_covariates, "assign") <- 0
-                return(list(
-                    data = data,
-                    idata = NULL,
-                    idesign = ~1,
-                    b_matrix_covariates = b_matrix_covariates,
-                    covariates_mmodel = NULL,
-                    effect_names_covariates = effect_names_covariates,
-                    effect_indices_covariates = effect_indices_covariates
-                ))
-                # return(list(
-                #     data = NULL,
-                #     covariates_mmodel = NULL,
-                #     effect_names_covariates = character(),
-                #     effect_indices_covariates = integer()
-                # ))
-            }
-
-            covariates_mmodel <- list()
-            effect_names_covariates <- "Intercept"
-            effect_indices_covariates <- 0
-
-            if (!is.null(latent_covariates)) {
-                for (index in 1:length(latent_covariates)) {
-                    covariate_name <- names(latent_covariates)[index]
-                    data[[covariate_name]] <- NA_real_
-                }
-            }
-
-            contrasts_arg_covariates <- lapply(manifest_covariates, function(x) {
-                if (!is.null(contrasts_arg[[x]])) {
-                    contrasts_arg[[x]]
-                } else {
-                    if (is.factor(data[[x]]) || is.character(data[[x]])) {
-                        "contr.treatment"
-                    }
-                }
-            })
-            names(contrasts_arg_covariates) <- manifest_covariates
-            contrasts_arg_covariates <- contrasts_arg_covariates[!sapply(contrasts_arg_covariates, is.null)]
-
-            manifest_design <- paste0(manifest_covariates, collapse = " * ")
-            latent_design <- paste0(names(latent_covariates), collapse = " + ")
-            if (!is.null(manifest_covariates) && !is.null(latent_covariates)) {
-                latent_design <- paste0(" + ", latent_design)
-            }
-
-            design_covariates <- paste0(
-                "~",
-                manifest_design,
-                latent_design
-            ) %>% as.formula()
-
-            opts_old <- options(na.action='na.pass')
-            b_matrix_covariates <- model.matrix(
-                design_covariates,
-                data,
-                contrasts_arg_covariates
-            )
-            options(opts_old)
-
-            effect_names_covariates <- c("Intercept", attr(terms(design_covariates), "term.labels"))
-            effect_indices_covariates <- attr(b_matrix_covariates, "assign")
-
-            data <- data %>%
-                select_at(names(data)[!(names(data) %in% c(manifest_covariates, names(latent_covariates)))])
-
-            # b_matrix_covariates <- b_matrix_covariates[,-1,drop=F] %>%
-            #     as_tibble(.name_repair = "universal")
-
-            b_matrix_covariates_tbl <- b_matrix_covariates[,-1,drop=F] %>%
-                as_tibble()
-            b_matrix_covariates_tbl <- b_matrix_covariates_tbl[,!(names(b_matrix_covariates_tbl) %in% names(latent_covariates))]
-            b_matrix_names <- names(b_matrix_covariates_tbl)
-            b_matrix_names <- b_matrix_names[!(b_matrix_names %in% names(latent_covariates))]
-
-            names(b_matrix_covariates_tbl) <- vctrs::vec_as_names(
-                b_matrix_names,
-                repair = "universal", quiet = T
-            )
-
-            data <- bind_cols(data, b_matrix_covariates_tbl)
-
-            covariates_mmodel <- as.list(names(b_matrix_covariates_tbl))
-            names(covariates_mmodel) <- paste0(".covariate", 1:length(covariates_mmodel))
-
-            if (!is.null(latent_covariates)) {
-                last_index <- length(covariates_mmodel)
-
-                if (is.null(names(latent_covariates))) {
-                    names(latent_covariates) <-paste0(
-                        ".covariate",
-                        seq(last_index + 1, last_index + length(latent_covariates))
-                    )
-                }
-
-                empty_names_indices <- which(names(latent_covariates) == "")
-                names(latent_covariates)[empty_names_indices] <- paste0(".covariate", empty_names_indices + last_index)
-
-                covariates_mmodel <- c(covariates_mmodel, latent_covariates)
-
-
-
-                # effect_names_covariates <- c(effect_names_covariates, names(latent_covariates))
-                # effect_indices_covariates <- c(
-                #     effect_indices_covariates,
-                #     seq(max(c(0, effect_indices_covariates)) + 1, max(c(0, effect_indices_covariates)) + 1 + length(latent_covariates) - 1)
-                # )
-            }
-
-            list(
-                data = data,
-                idata = NULL,
-                idesign = design_covariates,
-                b_matrix_covariates = b_matrix_covariates,
                 covariates_mmodel = covariates_mmodel,
                 effect_names_covariates = effect_names_covariates,
                 effect_indices_covariates = effect_indices_covariates
@@ -546,7 +396,6 @@ Semnova <- R6::R6Class(
 
             if (all(sapply(withins, length) == 1L)) {
                 c_matrix_within <- matrix(1, ncol = 1, nrow = 1)
-                dimnames(c_matrix_within) <- list("(Intercept)", "dv")
                 b_matrix_within <- solve(c_matrix_within)
 
                 effect_names_within <- "Intercept"
@@ -605,16 +454,15 @@ Semnova <- R6::R6Class(
 
         #' @keywords internal
         parse_between_design = function(
-            betweens,
-            contrasts_arg,
-            normalize_contrasts
+        betweens,
+        contrasts_arg,
+        normalize_contrasts
         ) {
             idata_between <- do.call(expand.grid, betweens)
             idesign_between <- as.formula(paste0("~", paste0(names(betweens), collapse = "*")))
 
             if (all(sapply(betweens, length) == 1L)) {
                 c_matrix_between <- matrix(1, ncol = 1, nrow = 1)
-                dimnames(c_matrix_between) <- list("(Intercept)", ".group")
                 b_matrix_between <- solve(c_matrix_between)
 
                 effect_names_between <- "Intercept"
@@ -755,21 +603,21 @@ Semnova <- R6::R6Class(
 
         #' @keywords internal
         specify_internal = function(
-            withins = list(A = "A1"),      # named list: withins = list(A = c("A1", "A2", "A2"))
-            betweens = list(G1 = "G1_1"),  # named list: betweens = list(group = c("g1", "g2", "g3"))
-            manifest_covariates = NULL,    # character vector: manifest_covariates = c("covariate3")
-            covariates_description = NULL, # named list: covariates_description = list(C1 = numeric(), group = c("g1", "g2"))
-            latent_covariates = NULL,      # named list: latent_covariates = list(cov1 = c("covariate1", "covariate2"))
-            indicators = "Y1",             # named list: indicators = list(indicators = c("Y1", "Y2", "Y3"))
-            id = "id",                     # character vector: id = c("id"),
-            dv = "dv",                     # character: "dv"
-            contrasts_arg = list(),        # named list: contrasts_arg = list(A = "contr.poly", group = "contr.sum"),
-            resid_cov = list(),            # named list: resid_cov = list("Y1", "Y2", "Y3")
-            equal_resid_cov = list(),      # named list: equal_resid_cov = list("Y1", "Y2", "Y3")
-            sphericity = list(),           # UNnamed list or formula: sphericity = list("A")
-            normalize_contrasts = FALSE,   # logical: normalize_contrasts = FALSE
-            data = NULL,
-            ...
+        withins = list(A = "A1"),      # named list: withins = list(A = c("A1", "A2", "A2"))
+        betweens = list(G1 = "G1_1"),  # named list: betweens = list(group = c("g1", "g2", "g3"))
+        manifest_covariates = NULL,    # character vector: manifest_covariates = c("covariate3")
+        covariates_description = NULL, # named list: covariates_description = list(C1 = numeric(), group = c("g1", "g2"))
+        latent_covariates = NULL,      # named list: latent_covariates = list(cov1 = c("covariate1", "covariate2"))
+        indicators = "Y1",             # named list: indicators = list(indicators = c("Y1", "Y2", "Y3"))
+        id = "id",                     # character vector: id = c("id"),
+        dv = "dv",                     # character: "dv"
+        contrasts_arg = list(),        # named list: contrasts_arg = list(A = "contr.poly", group = "contr.sum"),
+        resid_cov = list(),            # named list: resid_cov = list("Y1", "Y2", "Y3")
+        equal_resid_cov = list(),      # named list: equal_resid_cov = list("Y1", "Y2", "Y3")
+        sphericity = list(),           # UNnamed list or formula: sphericity = list("A")
+        normalize_contrasts = FALSE,   # logical: normalize_contrasts = FALSE
+        data = NULL,
+        ...
         ) {
 
             private$withins <- withins
@@ -786,6 +634,7 @@ Semnova <- R6::R6Class(
             private$sphericity <- sphericity
             private$normalize_contrasts <- normalize_contrasts
 
+
             # initialize: 1. create within contrast matrix ---------------------
 
             within_design <- private$parse_within_design(
@@ -793,8 +642,6 @@ Semnova <- R6::R6Class(
                 contrasts_arg = contrasts_arg,
                 normalize_contrasts = normalize_contrasts
             )
-
-            private$within_design <- within_design
 
             # initialize: 2. create eta mmodel ---------------------------------
 
@@ -810,8 +657,6 @@ Semnova <- R6::R6Class(
                 contrasts_arg = contrasts_arg,
                 normalize_contrasts = normalize_contrasts
             )
-
-            private$between_design <- between_design
 
 
             # initialize: 7. create group labels -------------------------------
@@ -829,8 +674,6 @@ Semnova <- R6::R6Class(
                 contrasts_arg = contrasts_arg,
                 normalize_contrasts = normalize_contrasts
             )
-
-            private$covariates_design <- covariates_design
 
             # initialize: 9. parse resid_cov -----------------------------------
 
@@ -895,504 +738,12 @@ Semnova <- R6::R6Class(
                 ...
             )
 
-            private$fill_model_info()
-
             invisible(self)
-        },
-
-        .get_model_frame_old = function() {
-            within_data <- lapply(private$data$id, function(id) {
-                private$within_design$idata %>%
-                    as_tibble() %>%
-                    mutate(!!private$id := id)
-            }) %>%
-                bind_rows()
-
-            between_data <- private$between_design$idata %>%
-                as_tibble() %>%
-                mutate(.group = private$group_labels) %>%
-                inner_join(
-                    private$data %>% select_at(c("id", ".group")),
-                    by = ".group"
-                ) %>%
-                select(-all_of(".group"))
-
-            manifest_covariates <- private$covariates[!sapply(private$covariates, self$is_latent)]
-            latent_covariates <- private$covariates[sapply(private$covariates, self$is_latent)]
-
-            fs_covariates <- predict(self$get_sem_object) %>%
-                (function(x) if(!is.list(x)) list(x) else x) %>%
-                lapply(function(fs) {
-                    fs[,latent_covariates,drop =F]
-                })
-
-            covariates_data <- private$data %>%
-                mutate(case.idx = row_number()) %>%
-                distinct(case.idx, .keep_all=T) %>%
-                select_at(c(".group", "id", "case.idx", manifest_covariates)) %>%
-                group_by(.group) %>%
-                group_modify(function(tbl, desc) {
-                    group_index <- which(desc$.group == private$group_labels)
-                    lav_data <- private$sem_obj@Data
-                    ids <- lav_data@case.idx[[group_index]]
-                    fs <- fs_covariates[[group_index]]
-                    fs <- as_tibble(fs) %>%
-                        mutate(case.idx = ids)
-                    full_join(tbl, fs, by = "case.idx")
-                }) %>%
-                ungroup() %>%
-                select(-all_of(c(".group", "case.idx")))
-
-            within_data %>%
-                left_join(
-                    between_data,
-                    by = "id"
-                ) %>%
-                left_join (
-                    covariates_data,
-                    by = "id"
-                )
-        },
-
-        .get_model_frame = function() {
-            dat <- private$data_original %>%
-                select_at(c(
-                    private$id,
-                    names(private$withins),
-                    names(private$betweens)
-                )) %>%
-                distinct()
-
-            manifest_covariates <- private$covariates[!as.logical(sapply(private$covariates, self$is_latent))]
-            latent_covariates <- private$covariates[as.logical(sapply(private$covariates, self$is_latent))]
-
-            fs_covariates <- predict(self$get_sem_object) %>%
-                (function(x) if(!is.list(x)) list(x) else x) %>%
-                lapply(function(fs) {
-                    fs[,latent_covariates,drop =F]
-                })
-
-            covariates_data <- private$data %>%
-                mutate(case.idx = row_number()) %>%
-                distinct(case.idx, .keep_all=T) %>%
-                select_at(c(".group", private$id, "case.idx", manifest_covariates)) %>%
-                group_by(.group) %>%
-                group_modify(function(tbl, desc) {
-                    group_index <- which(desc$.group == private$group_labels)
-                    lav_data <- private$sem_obj@Data
-                    ids <- lav_data@case.idx[[group_index]]
-                    fs <- fs_covariates[[group_index]]
-                    fs <- as_tibble(fs) %>%
-                        mutate(case.idx = ids)
-                    full_join(tbl, fs, by = "case.idx")
-                }) %>%
-                ungroup() %>%
-                select(-all_of(c(".group", "case.idx")))
-
-            dat %>%
-                left_join (
-                    covariates_data,
-                    by = private$id
-                )
-        },
-
-        #' @import tidyverse
-        #' @importFrom Deriv Simplify
-        fill_model_info = function() {
-            private$model_info <- private$.get_model_info()
-        },
-
-        #' @import tidyverse
-        #' @importFrom Deriv Simplify
-        .get_model_info = function(dat = NULL) {
-
-            if (is.null(dat)) {
-                dat <- private$.get_model_frame()
-            }
-            if (!(all(sapply(private$id, `%in%`, names(dat))))) {
-                for (id in private$id) {
-                    dat <- dat %>%
-                        mutate(!!id := row_number())
-                }
-            }
-
-            within_conditions <- private$within_design$idata %>%
-                apply(1, paste0, collapse = "_")
-
-            within_data <- dat %>%
-                unite(".within_condition", all_of(names(private$withins))) %>%
-                `[[`(".within_condition") %>%
-                sapply(function(x) which(x == within_conditions)) %>%
-                (function(x) private$within_design$b_matrix[x,,drop=F]) %>%
-                bind_cols(dat) %>%
-                select(all_of(c(private$id, colnames(private$within_design$b_matrix)))) %>%
-                distinct()
-
-            manifest_covariates <- private$covariates[!as.logical(sapply(private$covariates, self$is_latent))]
-            latent_covariates <- private$covariates[as.logical(sapply(private$covariates, self$is_latent))]
-
-            between_conditions <- private$between_design$idata %>%
-                apply(1, paste0, collapse = "_")
-
-            between_data <- dat %>%
-                unite(".between_condition", all_of(names(private$betweens))) %>%
-                `[[`(".between_condition") %>%
-                sapply(function(x) which(x == between_conditions)) %>%
-                (function(x) private$between_design$b_matrix[x,,drop=F]) %>%
-                bind_cols(dat) %>%
-                select_at(c(
-                    private$id,
-                    colnames(private$between_design$b_matrix)
-                )) %>%
-                distinct()
-
-            between_data <- left_join(
-                within_data,
-                between_data,
-                by = c(private$id, "(Intercept)")
-            ) %>%
-                select_at(names(between_data)) %>%
-                select(all_of(c(private$id, "(Intercept)")), everything())
-
-            covariates_data <- dat %>%
-                select_at(c(
-                    private$id,
-                    manifest_covariates,
-                    latent_covariates
-                )) %>%
-                distinct()
-
-            covariates_data <- left_join(
-                within_data,
-                covariates_data,
-                by = c(private$id)
-            ) %>%
-                select_at(names(covariates_data)) %>%
-                mutate(`(Intercept)` = 1) %>%
-                select(all_of(c(private$id, "(Intercept)")), everything())
-
-            within_terms <- terms(private$within_design$idesign)
-            between_terms <- terms(private$between_design$idesign)
-            covariates_terms <- terms(private$covariates_design$idesign)
-
-            within_term_labels <- attr(within_terms, "term.labels")
-            between_term_labels <- attr(between_terms, "term.labels")
-            covariates_term_labels <- attr(covariates_terms, "term.labels")
-
-            within_b_matrix <- private$within_design$b_matrix
-            between_b_matrix <- private$between_design$b_matrix
-            covariates_b_matrix <- private$covariates_design$b_matrix_covariates
-
-            within_nterms <- ncol(attr(within_terms, "factors"))
-            between_nterms <- ncol(attr(between_terms, "factors"))
-            covariates_nterms <- max(c(0, ncol(attr(covariates_terms, "factors"))))
-
-            nvariables <- nrow(attr(within_terms, "factors")) +
-                nrow(attr(between_terms, "factors")) +
-                max(c(0, nrow(attr(covariates_terms, "factors"))))
-            nterms <- (within_nterms+1) * (between_nterms+1) * (covariates_nterms+1)
-
-            attr_variables <- c(
-                rownames(attr(within_terms, "factors")),
-                rownames(attr(between_terms, "factors")),
-                rownames(attr(covariates_terms, "factors"))
-            )
-
-            attr_factors <- matrix(
-                nrow = nvariables,
-                ncol = nterms-1,
-                dimnames = list(attr_variables, rep_len("", nterms-1))
-            )
-
-            attr_contrasts <- c(
-                attr(private$within_design$b_matrix, "contrasts"),
-                attr(private$between_design$b_matrix, "contrasts"),
-                attr(private$covariates_design$b_matrix, "contrasts")
-            )
-
-            attr_formula <- c()
-            attr_order <- vector("numeric", nterms)
-            b_matrix <- within_data %>%
-                select_at(private$id)
-            attr_assign <- c()
-            attr_term_labels <- c()
-            attr_order <- c()
-            counter <- 0
-            for (covariates_effect_index in 0:covariates_nterms) {
-                for (between_effect_index in 0:between_nterms) {
-                    for (within_effect_index in 0:within_nterms) {
-
-                        # covariates_effect_index <- 0
-                        # between_effect_index <- 0
-                        # within_effect_index <- 3
-
-                        effect_index <-
-                            covariates_effect_index * ((within_nterms+1)*(between_nterms+1)) +
-                            between_effect_index * ((within_nterms+1)) +
-                            within_effect_index
-
-                        # print(effect_index)
-                        # print("outer loop")
-                        # print(covariates_effect_index)
-                        # print(between_effect_index)
-                        # print(within_effect_index)
-
-                        effect_formula <- paste0(c(
-                            if (within_effect_index == 0) NULL else private$within_design$effect_names[within_effect_index+1],
-                            if (between_effect_index == 0) NULL else private$between_design$effect_names[between_effect_index+1],
-                            if (covariates_effect_index == 0) NULL else private$covariates_design$effect_names[covariates_effect_index+1]
-                        ), collapse = ":")
-
-                        attr_formula <- c(
-                            attr_formula,
-                            if (effect_formula == "") "1" else effect_formula
-                        )
-
-                        if (any(c(covariates_effect_index,between_effect_index,within_effect_index)>0)) {
-                            attr_factors[,effect_index] <-
-                                rbind(
-                                    # Within
-                                    if (within_effect_index == 0) {
-                                        matrix(0, nrow = nrow(attr(within_terms, "factors")))
-                                    } else {
-                                        attr(within_terms, "factors")[,within_effect_index,drop=F]
-                                    },
-                                    # Between
-                                    if (between_effect_index == 0) {
-                                        matrix(0, nrow = nrow(attr(between_terms, "factors")))
-                                    } else {
-                                        attr(between_terms, "factors")[,between_effect_index,drop=F]
-                                    },
-                                    # Covariates
-                                    if (covariates_nterms == 0) {
-                                        NULL
-                                    } else if (covariates_effect_index == 0) {
-                                        matrix(0, nrow = nrow(attr(covariates_terms, "factors")))
-                                    } else {
-                                        attr(covariates_terms, "factors")[,covariates_effect_index,drop=F]
-                                    }
-                                )
-                            colnames(attr_factors)[effect_index] <- effect_formula
-                            attr_term_labels <- c(attr_term_labels, effect_formula)
-                            attr_order <- c(attr_order, sum(c(
-                                if (within_effect_index == 0) 0 else attr(within_terms, "order")[within_effect_index],
-                                if (between_effect_index == 0) 0 else attr(between_terms, "order")[between_effect_index],
-                                if (covariates_effect_index == 0) 0 else attr(covariates_terms, "order")[covariates_effect_index]
-                            )))
-                        }
-
-                        within_b_indices <- which(private$within_design$effect_indices == within_effect_index)
-                        within_effect_name <- private$within_design$effect_names[within_effect_index+1]
-                        between_b_indices <- which(private$between_design$effect_indices == between_effect_index)
-                        between_effect_name <- private$between_design$effect_names[between_effect_index+1]
-                        covariates_b_indices <- which(private$covariates_design$effect_indices == covariates_effect_index)
-                        covariates_effect_name <- private$covariates_design$effect_names[covariates_effect_index+1]
-
-                        for (covariates_index in covariates_b_indices) {
-                            for (between_index in between_b_indices) {
-                                for (within_index in within_b_indices) {
-                                    # within_index <- 5
-                                    # between_index <- 1
-                                    # covariates_index <- 1
-
-                                    # print("inner loop")
-                                    # print(covariates_index)
-                                    # print(between_index)
-                                    # print(within_index)
-
-                                    # counter <- counter+1
-                                    # print(counter)
-                                    # print("")
-
-                                    col_name <-
-                                        paste0(c(
-                                            if (within_index == 1) NULL else names(within_data)[within_index + length(private$id)],
-                                            if (between_index == 1) NULL else names(between_data)[between_index + length(private$id)],
-                                            if (covariates_index == 1) NULL else names(covariates_data)[covariates_index + length(private$id)]
-                                        ), collapse = ":")
-                                    col_name <- if (col_name == "") "(Intercept)" else col_name
-
-                                    within_col <- within_data %>%
-                                        select(-all_of(private$id)) %>%
-                                        `[[`(within_index)
-
-                                    between_col <- between_data %>%
-                                        select(-all_of(private$id)) %>%
-                                        `[[`(between_index)
-
-                                    covariates_col <- covariates_data %>%
-                                        select(-all_of(private$id)) %>%
-                                        `[[`(covariates_index)
-
-                                    b_matrix <- bind_cols(
-                                        b_matrix,
-                                        tibble(.new_col = within_col * between_col * covariates_col)
-                                    )
-                                    colnames(b_matrix)[ncol(b_matrix)] <- col_name
-                                    attr_assign <- c(attr_assign, effect_index)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            attr_formula <- paste0(
-                "(", as.character(within_terms)[2], ")*",
-                "(", as.character(between_terms)[2], ")*",
-                "(", as.character(covariates_terms)[2], ")"
-            ) %>%
-                Deriv::Simplify() %>%
-                (function(x) paste0("dv ~", x)) %>%
-                as.formula()
-
-            terms <- attr_formula
-
-            attr_variables <- str2lang(paste0(
-                "list(dv,",
-                paste0(attr_variables, collapse = ","),
-                ")"
-            ))
-
-            class(terms) <- c("terms", "formula")
-            attributes(terms) <- list(
-                variables = attr_variables,
-                factors = attr_factors,
-                term.labels = attr_term_labels,
-                order = attr_order,
-                intercept = 1,
-                response = 1,
-                .Environment = environment()
-            )
-
-            b_matrix <- b_matrix %>%
-                select(-all_of(private$id)) %>%
-                as.matrix()
-
-            attr(b_matrix, "assign") <- attr_assign
-            attr(b_matrix, "contrasts") <- attr_contrasts
-
-            model_frame <- private$.get_model_frame()
-
-            xlevels <- c(
-                apply(private$within_design$idata, 2, unique),
-                apply(private$between_design$idata, 2, unique, simplify = F),
-                private$covariates_description[sapply(private$covariates_description, function(x) !is.numeric(x))]
-            )
-            names(xlevels) <- c(
-                names(private$within_design$idata),
-                names(private$between_design$idata),
-                names(private$covariates_description)[sapply(private$covariates_description, function(x) !is.numeric(x))]
-            )
-
-            contrast_matrix <- lapply(private$hypotheses, function(hypothesis) hypothesis$get_contrasts(self)) %>%
-                (function(x) do.call(cbind, x)) %>%
-                t()
-
-            par_labels <- c(self$get_par_labels)
-            vcov <- lavInspect(private$sem_obj, "vcov")[par_labels,par_labels]
-            est <- self$get_estimates() %>%
-                filter(label %in% par_labels)
-            est <- est[sapply(par_labels, function(label) which(label == est$label)),][["est"]] %>%
-                matrix(ncol = 1)
-            est <- contrast_matrix %*% est
-            rownames(est) <- colnames(b_matrix)
-
-            vcov <- contrast_matrix %*% vcov %*% t(contrast_matrix)
-            dimnames(vcov) <- list(
-                colnames(b_matrix),
-                colnames(b_matrix)
-            )
-
-            list(
-                model_frame = model_frame,
-                xlevels = xlevels,
-                model_matrix = b_matrix,
-                terms = terms,
-                formula = attr_formula,
-                vcov = vcov,
-                coefficients = est
-            )
         }
     ),
     active = list(
-        formula = function() {
-#
-#             within_terms <- terms(private$within_design$idesign)
-#             between_terms <- terms(private$between_design$idesign)
-#             covariate_terms_names <- private$covariates_design
-#             expand.grid(
-#                 attr(within_terms, "term.labels"),
-#                 attr(between_terms, "term.labels"),
-#                 covariate_terms_names
-#             )
-#
-#             betweens <- names(private$betweens)
-#             withins <- names(private$withins)
-#             terms(private$within_design$idesign)
-#             private$covariates_design
-#             covariates <- private$covariates
-#             as.formula(
-#                 paste0(
-#                     "dv ~ ",
-#                     paste0(c(
-#                         paste0(betweens, collapse = "*"),
-#                         paste0(withins, collapse = "*"),
-#                         paste0(covariates, collapse = "*")
-#                     ), collapse = "*")
-#                 )
-#             )
-            private$model_info$formula
-        },
-        terms = function() {
-            private$model_info$terms
-        },
-        family = function() {
-            gaussian()
-        },
-        fixed_effects_means = function(point_estimates = T) {
-            # coefficients <- self$get_estimates()
-            # indices <- sapply(c(self$get_par_labels), function(label) which(label == coefficients$label))
-            # coefficients <- coefficients[indices,]
-            # if (point_estimates) {
-            #     coefficients <- coefficients[["est"]]
-            #     names(coefficients) <- c(self$get_par_labels)
-            # }
-            # coefficients
-            private$model_info$coefficients
-        },
-        fixed_effects_vcov = function() {
-            vcov <- vcov(self$get_sem_object)
-            vcov <- vcov[,c(self$get_par_labels)]
-            vcov <- vcov[c(self$get_par_labels),]
-            private$model_info$vcov
-        },
-        model_matrix = function() {
-            self$get_model_matrix()
-        },
-        model_frame = function() {
-            private$model_info$model_frame
-        },
-        model_offset = function() {
-            # private$model_info$model_offset
-            NULL
-        },
-        xlevels = function() {
-            private$model_info$xlevels
-        },
-        vcov = function() {
-            private$model_info$vcov
-        },
-        coefficients = function() {
-            private$model_info$coefficients
-        }
     ),
     public = list(
-
-        #' @export
-        get_model_matrix = function(dat = NULL) {
-            private$.get_model_info(dat)$model_matrix
-        },
 
         #' @description Semnova class constructor.
         initialize = function() {
@@ -1407,11 +758,11 @@ Semnova <- R6::R6Class(
         #' uniquely identify each case.
         #' @param dv Character. Variable from the data set that contains the
         #' dependent variable.
-        #' @param indicators Character. Variable from the data set that
+        #' @param indicator Character. Variable from the data set that
         #' contains indicators measuring the latent dependent eta variables.
-        #' @param withins Character vector. Variables from the data set that
+        #' @param within Character vector. Variables from the data set that
         #' contain within-subject factors.
-        #' @param betweens Character vector. Variables from the data set that
+        #' @param between Character vector. Variables from the data set that
         #' contain between-subject factors.
         #' @param contrasts_arg Named list of characters. Each element specifies
         #' the contrast coding scheme for the within or between subject factors.
@@ -1450,97 +801,71 @@ Semnova <- R6::R6Class(
         #' @import tidyverse
         #' @importFrom vctrs vec_as_names
         specify = function(
-            data,
-            id,
-            dv,
-            indicators = NULL,
-            withins = NULL,
-            betweens = NULL,
-            contrasts_arg = list(),
-            resid_cov = list(),
-            equal_resid_cov = list(),
-            sphericity = list(),
-            covariates = NULL,
-            normalize_contrasts = FALSE,
-            ...
+        data,
+        id,
+        dv,
+        indicator = NULL,
+        within = NULL,
+        between = NULL,
+        contrasts_arg = list(),
+        resid_cov = list(),
+        equal_resid_cov = list(),
+        sphericity = list(),
+        covariates = NULL,
+        normalize_contrasts = FALSE,
+        ...
         ) {
-
-            # TODO:
-            # - add deprecated warning for "within" argument
-            # - add deprecated warning for "between" argument
-            # - add deprecated warning for "indicator" argument
-
-
-            # 0. deprecated ----------------------------------------------------
-
-            dots <- list(...)
-            if (!is.null(dots[["within"]])) {
-                withins <- within
-                warning('Argument "within" is deprecated. Please use "withins" instead.')
-            }
-            if (!is.null(dots[["between"]])) {
-                betweens <- dots$between
-                warning('Argument "between" is deprecated. Please use "betweens" instead.')
-            }
-            if (!is.null(dots[["indicator"]])) {
-                indicators <- dots$indicator
-                warning('Argument "indicator" is deprecated. Please use "indicators" instead.')
-            }
 
             # specify: 1. sort data (not necessary but looks nice) -------------
 
             data <- data %>%
                 arrange_at(c(
                     id,
-                    betweens,
-                    withins,
-                    indicators
+                    between,
+                    within,
+                    indicator
                 )) %>%
                 mutate_all(function(x) if (is.factor(x)) droplevels(x) else x)
 
-            # specify: 2. parse withins argument -------------------------------
+            # specify: 2. parse within argument --------------------------------
 
-            if (is.null(withins)) {
+            if (is.null(within)) {
                 withins <- list(.A = "A1")
                 data$.A = "A1"
             } else {
-                withins_names <- withins
-                withins <- lapply(withins, function(x) unique(data[[x]]))
-                names(withins) <- withins_names
+                withins <- lapply(within, function(x) unique(data[[x]]))
+                names(withins) <- within
             }
 
             # specify: 3. parse indicators argument ----------------------------
 
-            if (is.null(indicators)) {
+            if (is.null(indicator)) {
                 data <- data %>%
-                    mutate(.indicators = !!dv)
+                    mutate(indicator = !!dv)
 
-                indicators <- list(.indicators = dv)
+                indicators <- list(indicator = dv)
             } else {
-                indicators_names <- indicators
-                indicators <- lapply(indicators, function(x) unique(data[[x]]))
-                names(indicators) <- indicators_names
+                indicator_name <- indicator
+                indicators <- list(unique(data[[indicator]]))
+                names(indicators) <- indicator_name
             }
 
-            # specify: 3. parse betweens argument -------------------------------
+            # specify: 3. parse between argument -------------------------------
 
             group <- private$get_data_name(what = "group")
 
-            if (is.null(betweens)) {
+            if (is.null(between)) {
                 betweens <- list("1")
                 names(betweens) <- group
                 data <- data %>%
                     mutate(!!group := "1")
             } else {
-                betweens_names <- betweens
-                betweens <- lapply(betweens, function(x) unique(data[[x]]))
-                names(betweens) <- betweens_names
+                betweens <- lapply(between, function(x) unique(data[[x]]))
+                names(betweens) <- between
             }
 
-            private$data_original <- data
-
             data <- data %>%
-                unite(!!group, !!names(betweens))
+                unite(!!group, all_of(names(betweens)))
 
             # specify: 4. create covariate interactions ------------------------
 
@@ -1594,14 +919,14 @@ Semnova <- R6::R6Class(
 
             uniquely_identified <- data %>%
                 select_at(selected_vars) %>%
-                group_by_at(c(
+                group_by_at(all_of(c(
                     id,
                     group,
                     names(indicators),
                     unlist(covariates_mmodel, use.names = FALSE),
                     names(withins)
-                )) %>%
-                summarize(n = n(), .group = "keep") %>%
+                ))) %>%
+                summarize(n = n()) %>%
                 ungroup() %>%
                 summarize(n = max(n)) %>%
                 `[[`("n")
@@ -1609,12 +934,6 @@ Semnova <- R6::R6Class(
             if (uniquely_identified != 1L) {
                 stop("Cases are not uniquely identified.")
             }
-
-            private$data_original <- private$data_original %>%
-                select_at(c(
-                    id, dv, names(indicators), names(withins),
-                    names(betweens), unlist(covariates_mmodel, use.names = FALSE))
-                )
 
             dat_wide <- data %>%
                 select_at(selected_vars) %>%
@@ -1624,8 +943,11 @@ Semnova <- R6::R6Class(
                         group,
                         unlist(covariates_mmodel, use.names = FALSE)
                     )),
-                    names_from = all_of(c(names(indicators),names(withins))),
-                    values_from = all_of(dv),
+                    names_from = all_of(c(
+                        names(indicators),
+                        names(withins))
+                    ),
+                    values_from = dv,
                     names_prefix = "."
                 )
 
@@ -1671,18 +993,18 @@ Semnova <- R6::R6Class(
         #'      )
         #' }
         specify_dummy = function(
-            n_within = 1,
-            n_between = 1,
-            n_indicator = 1,
-            n_latent_covariate = NULL,
-            n_manifest_covariate = NULL,
-            contrasts_arg_within = NULL,
-            contrasts_arg_between = NULL,
-            contrasts_arg_covariate = NULL,
-            sphericity = NULL,
-            resid_cov = NULL,
-            equal_resid_cov = NULL,
-            ...
+        n_within = 1,
+        n_between = 1,
+        n_indicator = 1,
+        n_latent_covariate = NULL,
+        n_manifest_covariate = NULL,
+        contrasts_arg_within = NULL,
+        contrasts_arg_between = NULL,
+        contrasts_arg_covariate = NULL,
+        sphericity = NULL,
+        resid_cov = NULL,
+        equal_resid_cov = NULL,
+        ...
         ) {
 
 
@@ -1906,19 +1228,3 @@ semnova_dummy <- function (...) {
     Semnova$new()$specify_dummy(...)
 }
 
-#' @export
-Effect <- function(focal.predictors, mod, ...){
-    UseMethod("Effect", mod)
-}
-
-#' @rdname semnova
-#' @export
-Effect.Semnova <- function (focal.predictors, mod, ...) {
-    SemnovaEffect$new(mod)$effect(focal.predictors, ...)
-}
-
-#' @rdname semnova
-#' @export
-plot.Semnova <- function (mod, focal.predictors, ...) {
-    plot(Effect(focal.predictors, mod, ...), ...)
-}

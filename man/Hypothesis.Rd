@@ -25,14 +25,16 @@ Some description
 \section{Methods}{
 \subsection{Public methods}{
 \itemize{
-\item \href{#method-new}{\code{Hypothesis$new()}}
-\item \href{#method-get_wald_string}{\code{Hypothesis$get_wald_string()}}
-\item \href{#method-clone}{\code{Hypothesis$clone()}}
+\item \href{#method-Hypothesis-new}{\code{Hypothesis$new()}}
+\item \href{#method-Hypothesis-get_wald_string}{\code{Hypothesis$get_wald_string()}}
+\item \href{#method-Hypothesis-get_contrasts}{\code{Hypothesis$get_contrasts()}}
+\item \href{#method-Hypothesis-get_contrasts_old}{\code{Hypothesis$get_contrasts_old()}}
+\item \href{#method-Hypothesis-clone}{\code{Hypothesis$clone()}}
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-new"></a>}}
-\if{latex}{\out{\hypertarget{method-new}{}}}
+\if{html}{\out{<a id="method-Hypothesis-new"></a>}}
+\if{latex}{\out{\hypertarget{method-Hypothesis-new}{}}}
 \subsection{Method \code{new()}}{
 Validates the input for different functions.
 
@@ -62,8 +64,8 @@ any character.}
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-get_wald_string"></a>}}
-\if{latex}{\out{\hypertarget{method-get_wald_string}{}}}
+\if{html}{\out{<a id="method-Hypothesis-get_wald_string"></a>}}
+\if{latex}{\out{\hypertarget{method-Hypothesis-get_wald_string}{}}}
 \subsection{Method \code{get_wald_string()}}{
 Returns the a string for the Wald test.
 \subsection{Usage}{
@@ -79,8 +81,26 @@ Returns the a string for the Wald test.
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-clone"></a>}}
-\if{latex}{\out{\hypertarget{method-clone}{}}}
+\if{html}{\out{<a id="method-Hypothesis-get_contrasts"></a>}}
+\if{latex}{\out{\hypertarget{method-Hypothesis-get_contrasts}{}}}
+\subsection{Method \code{get_contrasts()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Hypothesis$get_contrasts(lgc)}\if{html}{\out{</div>}}
+}
+
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Hypothesis-get_contrasts_old"></a>}}
+\if{latex}{\out{\hypertarget{method-Hypothesis-get_contrasts_old}{}}}
+\subsection{Method \code{get_contrasts_old()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Hypothesis$get_contrasts_old(lgc)}\if{html}{\out{</div>}}
+}
+
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Hypothesis-clone"></a>}}
+\if{latex}{\out{\hypertarget{method-Hypothesis-clone}{}}}
 \subsection{Method \code{clone()}}{
 The objects of this class are cloneable with this method.
 \subsection{Usage}{

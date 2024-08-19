@@ -16,21 +16,21 @@ Some description
 \section{Methods}{
 \subsection{Public methods}{
 \itemize{
-\item \href{#method-new}{\code{Power$new()}}
-\item \href{#method-get_results}{\code{Power$get_results()}}
-\item \href{#method-power_script_lgc}{\code{Power$power_script_lgc()}}
-\item \href{#method-power_script_semnova}{\code{Power$power_script_semnova()}}
-\item \href{#method-power_analysis_lgc}{\code{Power$power_analysis_lgc()}}
-\item \href{#method-power_analysis_semnova}{\code{Power$power_analysis_semnova()}}
-\item \href{#method-print}{\code{Power$print()}}
-\item \href{#method-summary}{\code{Power$summary()}}
-\item \href{#method-plot}{\code{Power$plot()}}
-\item \href{#method-clone}{\code{Power$clone()}}
+\item \href{#method-Power-new}{\code{Power$new()}}
+\item \href{#method-Power-get_results}{\code{Power$get_results()}}
+\item \href{#method-Power-power_script_lgc}{\code{Power$power_script_lgc()}}
+\item \href{#method-Power-power_script_semnova}{\code{Power$power_script_semnova()}}
+\item \href{#method-Power-power_analysis_lgc}{\code{Power$power_analysis_lgc()}}
+\item \href{#method-Power-power_analysis_semnova}{\code{Power$power_analysis_semnova()}}
+\item \href{#method-Power-print}{\code{Power$print()}}
+\item \href{#method-Power-summary}{\code{Power$summary()}}
+\item \href{#method-Power-plot}{\code{Power$plot()}}
+\item \href{#method-Power-clone}{\code{Power$clone()}}
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-new"></a>}}
-\if{latex}{\out{\hypertarget{method-new}{}}}
+\if{html}{\out{<a id="method-Power-new"></a>}}
+\if{latex}{\out{\hypertarget{method-Power-new}{}}}
 \subsection{Method \code{new()}}{
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{Power$new()}\if{html}{\out{</div>}}
@@ -38,8 +38,8 @@ Some description
 
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-get_results"></a>}}
-\if{latex}{\out{\hypertarget{method-get_results}{}}}
+\if{html}{\out{<a id="method-Power-get_results"></a>}}
+\if{latex}{\out{\hypertarget{method-Power-get_results}{}}}
 \subsection{Method \code{get_results()}}{
 Returns a list of detailed results.
 \subsection{Usage}{
@@ -48,8 +48,8 @@ Returns a list of detailed results.
 
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-power_script_lgc"></a>}}
-\if{latex}{\out{\hypertarget{method-power_script_lgc}{}}}
+\if{html}{\out{<a id="method-Power-power_script_lgc"></a>}}
+\if{latex}{\out{\hypertarget{method-Power-power_script_lgc}{}}}
 \subsection{Method \code{power_script_lgc()}}{
 Creates a power script for the Lgc class.
 \subsection{Usage}{
@@ -58,8 +58,8 @@ Creates a power script for the Lgc class.
 
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-power_script_semnova"></a>}}
-\if{latex}{\out{\hypertarget{method-power_script_semnova}{}}}
+\if{html}{\out{<a id="method-Power-power_script_semnova"></a>}}
+\if{latex}{\out{\hypertarget{method-Power-power_script_semnova}{}}}
 \subsection{Method \code{power_script_semnova()}}{
 Creates a power script for the Semnova class.
 \subsection{Usage}{
@@ -68,8 +68,8 @@ Creates a power script for the Semnova class.
 
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-power_analysis_lgc"></a>}}
-\if{latex}{\out{\hypertarget{method-power_analysis_lgc}{}}}
+\if{html}{\out{<a id="method-Power-power_analysis_lgc"></a>}}
+\if{latex}{\out{\hypertarget{method-Power-power_analysis_lgc}{}}}
 \subsection{Method \code{power_analysis_lgc()}}{
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{Power$power_analysis_lgc(..., data_syntax, sample_size, replications)}\if{html}{\out{</div>}}
@@ -77,8 +77,8 @@ Creates a power script for the Semnova class.
 
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-power_analysis_semnova"></a>}}
-\if{latex}{\out{\hypertarget{method-power_analysis_semnova}{}}}
+\if{html}{\out{<a id="method-Power-power_analysis_semnova"></a>}}
+\if{latex}{\out{\hypertarget{method-Power-power_analysis_semnova}{}}}
 \subsection{Method \code{power_analysis_semnova()}}{
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{Power$power_analysis_semnova(..., data_syntax, sample_size, replications)}\if{html}{\out{</div>}}
@@ -86,8 +86,8 @@ Creates a power script for the Semnova class.
 
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-print"></a>}}
-\if{latex}{\out{\hypertarget{method-print}{}}}
+\if{html}{\out{<a id="method-Power-print"></a>}}
+\if{latex}{\out{\hypertarget{method-Power-print}{}}}
 \subsection{Method \code{print()}}{
 Prints the power for each of the model parameters.
 \subsection{Usage}{
@@ -96,8 +96,8 @@ Prints the power for each of the model parameters.
 
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-summary"></a>}}
-\if{latex}{\out{\hypertarget{method-summary}{}}}
+\if{html}{\out{<a id="method-Power-summary"></a>}}
+\if{latex}{\out{\hypertarget{method-Power-summary}{}}}
 \subsection{Method \code{summary()}}{
 Prints the power for the hypotheses.
 \subsection{Usage}{
@@ -106,8 +106,8 @@ Prints the power for the hypotheses.
 
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-plot"></a>}}
-\if{latex}{\out{\hypertarget{method-plot}{}}}
+\if{html}{\out{<a id="method-Power-plot"></a>}}
+\if{latex}{\out{\hypertarget{method-Power-plot}{}}}
 \subsection{Method \code{plot()}}{
 Plots the Lgc dummy object.
 \subsection{Usage}{
@@ -116,8 +116,8 @@ Plots the Lgc dummy object.
 
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-clone"></a>}}
-\if{latex}{\out{\hypertarget{method-clone}{}}}
+\if{html}{\out{<a id="method-Power-clone"></a>}}
+\if{latex}{\out{\hypertarget{method-Power-clone}{}}}
 \subsection{Method \code{clone()}}{
 The objects of this class are cloneable with this method.
 \subsection{Usage}{

@@ -85,10 +85,10 @@ Hypothesis <- R6::R6Class(
         #' @param description Character. Description of the hypothesis. Can be
         #' any character.
         initialize = function(M = NULL, L = NULL, P = NULL, description = "") {
-            private$M = M
-            private$L = L
-            private$P = P
-            private$description = description
+            private$M <- M
+            private$L <- L
+            private$P <- P
+            private$description <- description
         },
 
         #' @description Returns the a string for the Wald test.
@@ -160,6 +160,99 @@ Hypothesis <- R6::R6Class(
                         paste0(collapse = "\n")
                 }) %>% paste0(collapse = "\n")
             }) %>% paste0(collapse = "\n")
+        },
+
+        #' @export
+        get_contrasts = function(lgc) {
+            par_labels <- lgc$get_par_labels
+            M <- self$get_M
+            L <- self$get_L
+            P <- self$get_P
+
+            res <- lapply(1:ncol(M), function(col_index_M) {
+                # col_index_M <- 1
+                col_M <- M[,col_index_M]
+                sapply(1:nrow(L), function(row_index_L) {
+                    # row_index_L <- 1
+                    row_L <- L[row_index_L,]
+                    between_within <- t(sapply(row_L, function(cell_L) cell_L * col_M))
+                    lapply(1:nrow(P), function(row_index_P) {
+                        # row_index_P <- 1
+                        row_P <- P[row_index_P,]
+                        sapply(row_P, function(cell_P) cell_P * between_within, simplify = "array")
+                    })
+                })
+            })
+
+            res <- res %>% unlist(recursive = F) %>% lapply(c) %>% (function(x) do.call(cbind, x))
+            rownames(res) <- par_labels
+            res
+        },
+
+        #' @importFrom Deriv Simplify
+        #' @export
+        get_contrasts_old = function(lgc) {
+            simplify_cont <- function(cont) {
+                # cont <- "1*.beta_6_6_1+1*.beta_6_6_6-1.2*(1*.beta_6_6_2+1*.beta_6_6_5)"
+                while(str_detect(cont, "\\([^\\)]+\\.(beta|alpha)[^\\)]+\\)")) {
+                    to_be_replaced <- str_extract(cont, "(\\+|\\-)*[0-9]+(\\.[0-9]+)*\\*\\([^\\)]+\\)")
+                    multiplyer <- str_extract(to_be_replaced, "^(\\+|\\-)*[0-9]+(\\.[0-9]+)*") %>%
+                        str_replace("^((\\+|\\-)*[0-9]+(\\.[0-9]+)*)", "(\\1)")
+                    factors <- to_be_replaced %>%
+                        str_replace("^(\\+|\\-)*[0-9]+(\\.[0-9]+)*\\*\\(", "") %>%
+                        str_replace("\\)$", "") %>%
+                        str_extract_all("(\\+|\\-)*[0-9]+(\\.[0-9]+)*\\*\\.(beta|alpha)[a-z0-9_]+") %>%
+                        unlist() %>%
+                        str_replace("^((\\+|\\-)*[0-9]+(\\.[0-9]+)*)", "(\\1)") %>%
+                        (function(x) {
+                            # multiplyer <- "(-1.2)"
+                            # x <- "(+1)*.beta_6_6_5"
+                            parameter <- str_extract(x, "\\.(beta|alpha)[0-9_]+")
+                            multiplyer_inner <- str_extract(x, "^\\(((\\+|\\-)*[0-9]+(\\.[0-9]+)*)\\)")
+                            new_multiplyer <- as.numeric(Deriv::Simplify(paste0(multiplyer, "*", multiplyer_inner)))
+                            paste0(
+                                if (new_multiplyer>0) "+" else "",
+                                new_multiplyer,
+                                "*",
+                                parameter
+                            )
+                        }) %>%
+                        paste0(collapse = "")
+                    cont <- str_replace(cont, fixed(to_be_replaced), fixed(factors))
+                }
+                cont
+            }
+
+            par_labels <- c(lgc$get_par_labels)
+            wald_string <- self$get_wald_string(lgc)
+            conts <- wald_string %>%
+                str_replace_all(" ", "") %>%
+                str_split("\n") %>%
+                unlist() %>%
+                str_replace_all("==0", "") %>%
+                str_replace_all("\\+(\\.beta|\\.alpha)", "+1*\\1") %>%
+                str_replace_all("\\-(\\.beta|\\.alpha)", "-1*\\1") %>%
+                str_replace_all("\\+\\(", "+1*(") %>%
+                str_replace_all("\\-\\(", "-1*(") %>%
+                str_replace_all("\\((\\.beta|\\.alpha)", "(+1*\\1") %>%
+                str_replace_all("\\((\\.beta|\\.alpha)", "(-1*\\1") %>%
+                str_replace_all("^(\\.beta|\\.alpha)", "1*\\1")
+
+            conts_names <- sapply(conts, Deriv::Simplify) %>% as.character()
+
+            conts <- sapply(conts, simplify_cont)
+            conts <- lapply(conts, function(cont) {
+                # cont <- "1*.beta_5_2_2-1*.beta_5_2_1"
+                factors <- str_extract_all(cont, "(\\+|\\-)*[0-9]+(\\.[0-9]+)*\\*\\.(beta|alpha)([a-z0-9\\_]+)") %>% unlist()
+                multiplyers <- str_extract_all(factors, "(\\+|\\-)*[0-9]+(\\.[0-9]+)*\\*") %>%
+                    str_replace("\\*", "") %>%
+                    unlist() %>% as.numeric()
+                parameters <- str_extract_all(factors, "\\.(beta|alpha)[a-z0-9_]+") %>% unlist()
+                multiplyers <- sapply(par_labels, function(x) if (!(x %in% parameters)) 0 else multiplyers[which(x == parameters)])
+            }) %>%
+                (function(x) do.call(cbind, x))
+            colnames(conts) <- conts_names
+            conts
         }
     )
 )

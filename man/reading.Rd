@@ -37,9 +37,9 @@
     \item{cbcl_ext_verh_rw_t5}{Child Behavior Checklist. Externalizing behavior raw score at grade 5.}
 }
 
+An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 4806 rows and 21 columns.
 
-
-
+An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 1602 rows and 22 columns.
 }
 \usage{
 reading_raw

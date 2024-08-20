@@ -993,7 +993,8 @@ Semnova <- R6::R6Class(
                 left_join (
                     covariates_data,
                     by = private$id
-                )
+                ) %>%
+                ungroup()
         },
 
         #' @import tidyverse

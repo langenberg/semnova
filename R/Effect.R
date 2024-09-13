@@ -58,7 +58,7 @@ SemnovaEffect <- R6::R6Class(
             private$.mod$vcov
         },
         coefficients = function() {
-            private$.mod$coefficients
+            private$.mod$coefficients[,1]
         },
         qr = function() {
             self$model.matrix %>%

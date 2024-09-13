@@ -1385,7 +1385,32 @@ Semnova <- R6::R6Class(
             private$model_info$vcov
         },
         coefficients = function() {
-            private$model_info$coefficients
+            # private$model_info$coefficients
+
+            coefs <- as.vector(private$model_info$coefficients)
+
+            vcov <- private$model_info$vcov
+            stderr <- sqrt(diag(vcov))
+
+            coefs <- cbind(
+                coefs,
+                stderr,
+                coefs/stderr,
+                coefs + qnorm(0.025)*stderr,
+                coefs + qnorm(0.975)*stderr,
+                pnorm(-abs(coefs/stderr)) + 1 - pnorm(abs(coefs/stderr))
+            )
+
+            colnames(coefs) <- c("Estimate", "Std. Error", "z value", "CI 2.5%", "CI 97.5%", "Pr(>|z|)")
+            coefs <- as.data.frame(coefs)
+
+            coefs <- structure(
+                coefs,
+                heading = "Parameter Estimates:",
+                class = c("anova", "data.frame")
+            )
+
+            coefs
         }
     ),
     public = list(
@@ -1583,8 +1608,6 @@ Semnova <- R6::R6Class(
                 data <- expanded_data$data
                 covariates_mmodel <- expanded_data$covariates_mmodel
             }
-
-
 
             # initialize: 10. reshape data -------------------------------------
 
@@ -1922,4 +1945,16 @@ Effect.Semnova <- function (focal.predictors, mod, ...) {
 #' @export
 plot.Semnova <- function (mod, focal.predictors, ...) {
     plot(Effect(focal.predictors, mod, ...), ...)
+}
+
+#' @rdname semnova
+#' @export
+coefficients.Semnova <- function (object, ...) {
+    object$coefficients(...)
+}
+
+#' @rdname semnova
+#' @export
+coef.Semnova <- function (object, ...) {
+    object$coefficients(...)
 }

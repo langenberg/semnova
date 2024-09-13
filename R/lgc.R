@@ -319,6 +319,12 @@ Lgc <- R6Class(
     ),
     active = list(
 
+        #' @description Prints coefficients for the Lgc object.
+        #' @export
+        coefficients = function(...) {
+            NULL
+        },
+
         #' @field get_par_table Read only. Retrieves the parameter table as tibble.
         get_par_table = function() {
             private$par_table$get_par_table
@@ -1192,46 +1198,86 @@ Lgc <- R6Class(
         #' @param fit_measures Logical. Indicates whether fit measures should be
         #' printed.
         #' @importFrom lavaan fitmeasures
-        summary = function(detailed = F, fit_measures = T) {
+        summary = function(fit_measures = T, anova = T, coefficients = T, ...) {
 
-            if (lavaan::fitmeasures(private$sem_obj)[c("df")] > 0L && fit_measures) {
-                cat("Fit measures:\n\n")
-
-                cat(paste0(
-                    "Chisq(",
-                    lavaan::fitmeasures(private$sem_obj)[c("df")],
-                    ") = ",
-                    round(lavaan::fitmeasures(private$sem_obj)[c("chisq")],3),
-                    ", p = ",
-                    round(lavaan::fitmeasures(private$sem_obj)[c("pvalue")],3),
-                    "\n"
-                ))
-
-                cat(paste0(
-                    "CFI = ",
-                    round(lavaan::fitmeasures(private$sem_obj)[c("cfi")], 3),
-                    "\n"
-                ))
-
-                cat(paste0(
-                    "TLI = ",
-                    round(lavaan::fitmeasures(private$sem_obj)[c("tli")], 3),
-                    "\n"
-                ))
-
-                cat(paste0(
-                    "RMSEA = ",
-                    round(lavaan::fitmeasures(private$sem_obj)[c("rmsea")], 3),
-                    " [",
-                    round(lavaan::fitmeasures(private$sem_obj)[c("rmsea.ci.lower")], 3),
-                    ", ",
-                    round(lavaan::fitmeasures(private$sem_obj)[c("rmsea.ci.upper")], 3),
-                    "]\n"
-                ))
-
-                cat("\n##############################\n\n")
+            if (fit_measures) {
+                self$fit_measures(print = T, ...)
             }
 
+            if (anova) {
+                if (fit_measures && !is.null(self$fit_measures(...))) {
+                    cat("\n##############################\n\n")
+                }
+                self$anova(print = T, ...)
+            }
+
+            if (coefficients && !is.null(self$coefficients)) {
+                if (fit_measures && !is.null(self$fit_measures(...)) || anova) {
+                    cat("\n##############################\n\n")
+                }
+                print(self$coefficients)
+            }
+
+            invisible(self)
+        },
+
+        #' @description Prints fit measures for the Lgc object.
+        #' @export
+        #' @importFrom lavaan fitmeasures
+        fit_measures = function(print = F, ...) {
+
+            if (lavaan::fitmeasures(private$sem_obj)[c("df")] > 0L) {
+                if (print) {
+                    cat("Fit measures:\n\n")
+
+                    cat(paste0(
+                        "Chisq(",
+                        lavaan::fitmeasures(private$sem_obj)[c("df")],
+                        ") = ",
+                        round(lavaan::fitmeasures(private$sem_obj)[c("chisq")],3),
+                        ", p = ",
+                        round(lavaan::fitmeasures(private$sem_obj)[c("pvalue")],3),
+                        "\n"
+                    ))
+
+                    cat(paste0(
+                        "CFI = ",
+                        round(lavaan::fitmeasures(private$sem_obj)[c("cfi")], 3),
+                        "\n"
+                    ))
+
+                    cat(paste0(
+                        "TLI = ",
+                        round(lavaan::fitmeasures(private$sem_obj)[c("tli")], 3),
+                        "\n"
+                    ))
+
+                    cat(paste0(
+                        "RMSEA = ",
+                        round(lavaan::fitmeasures(private$sem_obj)[c("rmsea")], 3),
+                        " [",
+                        round(lavaan::fitmeasures(private$sem_obj)[c("rmsea.ci.lower")], 3),
+                        ", ",
+                        round(lavaan::fitmeasures(private$sem_obj)[c("rmsea.ci.upper")], 3),
+                        "]\n"
+                    ))
+
+                    invisible(NULL)
+                } else {
+                    lavaan::fitmeasures(private$sem_obj)
+                }
+            } else {
+                if (print) {
+                    invisible(NULL)
+                } else {
+                    NULL
+                }
+            }
+        },
+
+        #' @description Prints hypothesis tests for the Lgc object.
+        #' @export
+        anova = function(print = F, detailed = F, ...) {
             if (detailed) {
                 for (hypothesis_index in 1:length(private$hypotheses)) {
 
@@ -1265,13 +1311,15 @@ Lgc <- R6Class(
                     ))
 
                 }
-            } else if (length(private$hypotheses) > 0L) {
-
-                print(self$tests_table(private$hypotheses))
-
+                invisible(self$tests_table(private$hypotheses))
+            } else {
+                if (print) {
+                    print(self$tests_table(private$hypotheses))
+                    invisible(self$tests_table(private$hypotheses))
+                } else {
+                    self$tests_table(private$hypotheses)
+                }
             }
-
-            invisible(self)
         },
 
         #' @description Compares the lavaan objects contained in Lgc objects.
@@ -1523,6 +1571,7 @@ anova.Lgc <- function(object, ...) {
     # Mostly copied from the lavaan package.
     # Thanks, Yves!!
 
+    lgc <- object
     object <- object$get_sem_object
 
     mcall <- match.call(expand.dots = TRUE)
@@ -1541,13 +1590,17 @@ anova.Lgc <- function(object, ...) {
     }
 
     modp <- sapply(dots, inherits, "Lgc")
-    mods <- c(list(object), dots[modp])
-    NAMES <- sapply(as.list(mcall)[c(FALSE, TRUE, modp)], deparse)
-    dots <- lapply(dots, function(x) if (inherits(x, "Lgc")) x$get_sem_object else x)
+    if (length(modp) > 0L) {
+        mods <- c(list(object), dots[modp])
+        NAMES <- sapply(as.list(mcall)[c(FALSE, TRUE, modp)], deparse)
+        dots <- lapply(dots, function(x) if (inherits(x, "Lgc")) x$get_sem_object else x)
 
-    ans <- do.call("lavTestLRT", c(list(object = object,
-                                        SB.classic = SB.classic, SB.H0 = SB.H0,
-                                        model.names = NAMES), dots))
-    ans
+        ans <- do.call("lavTestLRT", c(list(object = object,
+                                            SB.classic = SB.classic, SB.H0 = SB.H0,
+                                            model.names = NAMES), dots))
+        ans
+    } else {
+        lgc$anova(...)
+    }
 }
 

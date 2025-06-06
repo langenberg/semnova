@@ -117,7 +117,7 @@ ParTable <- R6::R6Class(
             }
 
             private$par_table <-
-                private$par_table %>%
+                private$par_table |>
                 add_row(
                     tibble(
                         id = new_id,
@@ -144,7 +144,7 @@ ParTable <- R6::R6Class(
             }
 
             private$par_table <-
-                private$par_table %>%
+                private$par_table |>
                 filter(id != remove_id)
 
             invisible(self)
@@ -1377,7 +1377,7 @@ ParTable <- R6::R6Class(
 
                 self$add_definition(
                     label = "N",
-                    definition   = paste0("exp(", group_weights, ")") %>%
+                    definition   = paste0("exp(", group_weights, ")") |>
                         paste0(collapse = " + ")
                 )
 
@@ -1444,14 +1444,14 @@ ParTable <- R6::R6Class(
                 select_group <- unique(private$par_table$group)
             }
 
-            private$par_table %>%
-                filter(group %in% select_group) %>%
-                filter(!remove_constraints | op != "==") %>%
-                filter(!remove_definitions | op != ":=") %>%
-                filter(!remove_na | na == FALSE) %>%
-                filter(!remove_unfree | free) %>%
-                filter(fixed_covariates | !remove_if_fixed) %>%
-                group_by(op, lhs) %>%
+            private$par_table |>
+                filter(group %in% select_group) |>
+                filter(!remove_constraints | op != "==") |>
+                filter(!remove_definitions | op != ":=") |>
+                filter(!remove_na | na == FALSE) |>
+                filter(!remove_unfree | free) |>
+                filter(fixed_covariates | !remove_if_fixed) |>
+                group_by(op, lhs) |>
                 group_map(function(tbl, desc) {
                     lhs <- desc$lhs
                     if (desc$op == "~1") {
@@ -1461,11 +1461,11 @@ ParTable <- R6::R6Class(
                         op <- desc$op
                     }
 
-                    rhss <- tbl %>%
-                        group_by(rhs, na) %>%
+                    rhss <- tbl |>
+                        group_by(rhs, na) |>
                         group_map(function(tbl, desc) {
                             rhs <- desc$rhs
-                            loadings <- tbl$value %>%
+                            loadings <- tbl$value |>
                                 paste0(collapse = ", ")
 
                             if (op %in% c(":=", "==")) {
@@ -1475,9 +1475,9 @@ ParTable <- R6::R6Class(
                             } else {
                                 paste0("c(", loadings, ")*", desc$rhs)
                             }
-                        }) %>% paste0(collapse = rhs_sep)
+                        }) |> paste0(collapse = rhs_sep)
                     paste0(lhs, " ", op, "\n    ", rhss)
-                }) %>% paste0(collapse = "\n")
+                }) |> paste0(collapse = "\n")
         },
 
         #' @description Returns an array of parameter labels used in the lavaan syntax.
@@ -1521,7 +1521,177 @@ ParTable <- R6::R6Class(
             labels <- array(labels, dim = c(n_groups, n_pis, n_covariates + 1))
 
             labels
+        },
+        get_par_labels2 = function(pis, covariates, groups) {
+
+            n_covariates <- length(covariates)
+            n_pis <- length(pis)
+            n_groups <- length(groups)
+
+            labels <- array("", dim = c(n_covariates + 1, n_pis, n_groups))
+
+            for (covariate_index in 0:n_covariates) {
+                for (pi_index in 1:n_pis) {
+                    for (group_index in 1:n_groups) {
+                        if (covariate_index == 0L) {
+                            labels[covariate_index + 1, pi_index, group_index] <-
+                                paste0(".alpha_pi_", pi_index, "_", group_index)
+                        } else {
+                            labels[covariate_index + 1, pi_index, group_index] <-
+                                paste0(".beta_", pi_index, "_", covariate_index, "_", group_index)
+                        }
+                    }
+                }
+            }
+
+            # Add dimnames
+            dimnames(labels) <- list(
+                covariate = c("intercept", covariates),
+                pi = pis,
+                group = groups
+            )
+
+            labels
+        },
+
+        B_array_labels = function(pis, covariates, groups) {
+
+            n_covariates <- length(covariates)
+            n_pis <- length(pis)
+            n_groups <- length(groups)
+
+            labels <- array("", dim = c(n_covariates + 1, n_pis, n_groups))
+
+            for (covariate_index in 0:n_covariates) {
+                for (pi_index in 1:n_pis) {
+                    for (group_index in 1:n_groups) {
+                        if (covariate_index == 0L) {
+                            labels[covariate_index + 1, pi_index, group_index] <-
+                                paste0(".alpha_pi_", pi_index, "_", group_index)
+                        } else {
+                            labels[covariate_index + 1, pi_index, group_index] <-
+                                paste0(".beta_", pi_index, "_", covariate_index, "_", group_index)
+                        }
+                    }
+                }
+            }
+
+            # Add dimnames
+            dimnames(labels) <- list(
+                covariate = c("intercept", covariates),
+                pi = pis,
+                group = groups
+            )
+
+            labels
+        },
+
+        B_vec_type = function(pis, covariates, groups) {
+            n_covariates <- length(covariates)
+            n_pis <- length(pis)
+            n_groups <- length(groups)
+
+            labels <- array("", dim = c(n_covariates + 1, n_pis, n_groups))
+
+            for (covariate_index in 0:n_covariates) {
+                for (pi_index in 1:n_pis) {
+                    for (group_index in 1:n_groups) {
+                        if (covariate_index == 0L) {
+                            labels[covariate_index + 1, pi_index, group_index] <- "pi"
+                        } else {
+                            labels[covariate_index + 1, pi_index, group_index] <- "covariate"
+                        }
+                    }
+                }
+            }
+
+            labels
+        },
+
+        B_vec_picov_indices = function(pis, covariates, groups) {
+            n_covariates <- length(covariates)
+            n_pis <- length(pis)
+            n_groups <- length(groups)
+
+            labels <- array("", dim = c(n_covariates + 1, n_pis, n_groups))
+
+            for (covariate_index in 0:n_covariates) {
+                for (pi_index in 1:n_pis) {
+                    for (group_index in 1:n_groups) {
+                        if (covariate_index == 0L) {
+                            labels[covariate_index + 1, pi_index, group_index] <- pi_index
+                        } else {
+                            labels[covariate_index + 1, pi_index, group_index] <- covariate_index
+                        }
+                    }
+                }
+            }
+
+            labels
+        },
+
+        B_vec_group_indices = function(pis, covariates, groups) {
+            n_covariates <- length(covariates)
+            n_pis <- length(pis)
+            n_groups <- length(groups)
+
+            labels <- array("", dim = c(n_covariates + 1, n_pis, n_groups))
+
+            for (covariate_index in 0:n_covariates) {
+                for (pi_index in 1:n_pis) {
+                    for (group_index in 1:n_groups) {
+                        labels[covariate_index + 1, pi_index, group_index] <- group_index
+                    }
+                }
+            }
+
+            labels
+        },
+
+        #' @importFrom stringr str_glue
+        B_var_vec_labels = function(pis, covariates, groups) {
+            types <- as.vector(self$B_vec_type(
+                pis = pis,
+                covariates = covariates,
+                groups = groups
+            ))
+            picov_indices <- as.vector(self$B_vec_picov_indices(
+                pis = pis,
+                covariates = covariates,
+                groups = groups
+            ))
+            group_indices <- as.vector(self$B_vec_group_indices(
+                pis = pis,
+                covariates = covariates,
+                groups = groups
+            ))
+
+            n <- length(types)
+            vcov_vec_labels <- matrix("", nrow = n, ncol = n)
+            names_vec <- character(n)
+
+            for (i in 1:n) {
+                # Assign dimname label to names_vec
+                names_vec[i] <- stringr::str_glue(
+                    ".{ifelse(types[i] == 'pi', 'pi', 'cov')}_{picov_indices[i]}_{group_indices[i]}"
+                )
+
+                for (j in i:n) {
+                    if (types[i] != "pi" || types[j] != "pi" || group_indices[i] != group_indices[j]) {
+                        vcov_vec_labels[i, j] <- vcov_vec_labels[j, i] <- "0"
+                    } else {
+                        vcov_vec_labels[i, j] <- vcov_vec_labels[j, i] <-
+                            str_glue(".sigma_pi_{picov_indices[i]}_{picov_indices[j]}_{group_indices[i]}")
+                    }
+                }
+            }
+
+            # Assign symmetric dimnames
+            dimnames(vcov_vec_labels) <- list(row = names_vec, col = names_vec)
+
+            return(vcov_vec_labels)
         }
+
     )
 )
 

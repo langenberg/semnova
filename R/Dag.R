@@ -84,7 +84,7 @@ Dag <- R6::R6Class(
                     )
                 }
                 result
-            }) %>% bind_rows()
+            }) |> bind_rows()
 
 
             # get covariates and indicator positions
@@ -120,7 +120,7 @@ Dag <- R6::R6Class(
                         )
                     }
                     result
-                }) %>% bind_rows() %>%
+                }) |> bind_rows() |>
                     mutate(is_left = FALSE)
             } else {
                 covariates <- tibble()
@@ -129,62 +129,62 @@ Dag <- R6::R6Class(
             coords <- bind_rows(
                 covariates,
                 etas_pi
-            ) %>%
+            ) |>
                 mutate(from_id = 1:n())
 
 
 
             # join coordinates with parameter table
 
-            pt <- private$.mod$get_estimates() %>%
-                group_by(type) %>%
+            pt <- private$.mod$get_estimates() |>
+                group_by(type) |>
                 group_modify(function(tbl, desc) {
                     if (desc$type != "regression") {
                         tbl
                     } else {
-                        tbl %>%
+                        tbl |>
                             mutate(lhs_tmp = lhs,
                                    lhs = rhs,
-                                   rhs = lhs_tmp) %>%
+                                   rhs = lhs_tmp) |>
                             select(-lhs_tmp)
                     }
-                }) %>%
+                }) |>
                 ungroup()
 
             pt <- left_join(
                 pt,
                 coords,
                 by = c("lhs")
-            ) %>%
+            ) |>
                 mutate(to_id = sapply(rhs, function(x) first(from_id[lhs == x])))
 
 
             # add residuals
 
-            n_resid_left <- pt %>%
+            n_resid_left <- pt |>
                 filter(
                     !private$.mod$is_latent(lhs),
                     private$.mod$is_indicator(lhs),
                     private$.mod$belongs_to(lhs, "eta"),
                     type == "resid_var",
                     group_index == 1
-                ) %>% nrow()
+                ) |> nrow()
             left_id <- max(pt$from_id, na.rm = T) + 1
             right_id <- left_id + n_resid_left
 
-            pt <- pt %>%
+            pt <- pt |>
                 group_by(
                     is_resid_var = type == "resid_var" & private$.mod$is_indicator(lhs),
                     group,
                     left = private$.mod$belongs_to(lhs, "eta")
-                ) %>%
+                ) |>
                 group_modify(function(tbl, desc) {
                     if (!desc$is_resid_var) {
                         tbl
                     } else if (desc$left) {
                         left_x <- 0
                         bind_rows(
-                            tbl %>%
+                            tbl |>
                                 mutate(
                                     lhs = "epsilon",
                                     from_id = seq(left_id,left_id + nrow(tbl) - 1),
@@ -193,7 +193,7 @@ Dag <- R6::R6Class(
                                     is_node = TRUE,
                                     variable_type = "latent"
                                 ),
-                            tbl %>%
+                            tbl |>
                                 mutate(
                                     rhs = lhs,
                                     lhs = "epsilon",
@@ -203,7 +203,7 @@ Dag <- R6::R6Class(
                                     se = NA,
                                     from_id = seq(left_id,left_id + nrow(tbl) - 1)
                                 ),
-                            tbl %>%
+                            tbl |>
                                 mutate(
                                     rhs = lhs,
                                     lhs = "epsilon",
@@ -214,7 +214,7 @@ Dag <- R6::R6Class(
                     } else if (!desc$left) {
                         right_x <- 6
                         bind_rows(
-                            tbl %>%
+                            tbl |>
                                 mutate(
                                     lhs = "epsilon",
                                     from_id = seq(right_id,right_id + nrow(tbl) - 1),
@@ -223,7 +223,7 @@ Dag <- R6::R6Class(
                                     is_node = TRUE,
                                     variable_type = "latent"
                                 ),
-                            tbl %>%
+                            tbl |>
                                 mutate(
                                     rhs = lhs,
                                     lhs = "epsilon",
@@ -233,7 +233,7 @@ Dag <- R6::R6Class(
                                     se = NA,
                                     from_id = seq(right_id,right_id + nrow(tbl) - 1),
                                 ),
-                            tbl %>%
+                            tbl |>
                                 mutate(
                                     rhs = lhs,
                                     lhs = "epsilon",
@@ -242,8 +242,8 @@ Dag <- R6::R6Class(
                                 )
                         )
                     }
-                }) %>%
-                ungroup() %>%
+                }) |>
+                ungroup() |>
                 select(-left, -is_resid_var)
 
 
@@ -257,14 +257,14 @@ Dag <- R6::R6Class(
                 right_id <- left_id + 1
             }
 
-            pt <- pt %>%
-                group_by(op, group, left = lhs %in% unlist(etas_mmodel)) %>%
+            pt <- pt |>
+                group_by(op, group, left = lhs %in% unlist(etas_mmodel)) |>
                 group_modify(function(tbl, desc) {
                     if (desc$op != ~ 1) {
                         tbl
                     } else if (desc$left) {
                         if (n_ind_etas == 1L) {
-                            tbl %>% mutate(is_node = TRUE, type = "node")
+                            tbl |> mutate(is_node = TRUE, type = "node")
                         } else {
                             if (n_ind_etas == 1L) {
                                 left_x <- 1
@@ -272,7 +272,7 @@ Dag <- R6::R6Class(
                                 left_x <- -1
                             }
                             bind_rows(
-                                tbl %>% mutate(is_node = TRUE, type = "node"),
+                                tbl |> mutate(is_node = TRUE, type = "node"),
                                 tibble(
                                     lhs = "1",
                                     from_id = left_id,
@@ -283,7 +283,7 @@ Dag <- R6::R6Class(
                                     variable_type = "intercept",
                                     is_left = TRUE
                                 ),
-                                tbl %>%
+                                tbl |>
                                     mutate(
                                         rhs = lhs,
                                         lhs = "1",
@@ -303,7 +303,7 @@ Dag <- R6::R6Class(
                             right_x <- 7
                         }
                         bind_rows(
-                            tbl %>% mutate(is_node = TRUE, type = "node"),
+                            tbl |> mutate(is_node = TRUE, type = "node"),
                             tibble(
                                 lhs = "1",
                                 from_id = right_id,
@@ -314,7 +314,7 @@ Dag <- R6::R6Class(
                                 variable_type = "intercept",
                                 is_left = FALSE
                             ),
-                            tbl %>%
+                            tbl |>
                                 mutate(
                                     rhs = lhs,
                                     lhs = "1",
@@ -325,19 +325,19 @@ Dag <- R6::R6Class(
                                 )
                         )
                     }
-                }) %>%
-                ungroup() %>%
+                }) |>
+                ungroup() |>
                 select(-left)
 
 
             ## some labeling stuff
 
-            pt <- pt %>%
-                filter(!(rhs %in% names(private$.mod$get_etas_mmodel())) | type != "intercept") %>%
+            pt <- pt |>
+                filter(!(rhs %in% names(private$.mod$get_etas_mmodel())) | type != "intercept") |>
                 mutate(
                     name = private$.mod$get_labels(lhs),
                     label = private$.mod$get_labels(label)
-                ) %>%
+                ) |>
                 mutate(
                     is_node = ifelse(is.na(is_node), FALSE, TRUE),
                     est = round(est, !!digits),
@@ -346,7 +346,7 @@ Dag <- R6::R6Class(
                         !free ~ paste0("ring(", est, ")"),
                         TRUE ~ as.character(est)
                     )
-                ) %>%
+                ) |>
                 mutate(
                     label = case_when(
                         !!labels == "estimates" ~ as.character(est),
@@ -357,8 +357,8 @@ Dag <- R6::R6Class(
                         !!labels == "both" & label != "" & est != "" ~ paste0(label, " == ", est),
                         TRUE ~ ""
                     )
-                ) %>%
-                mutate(y = -y + max_y) %>%
+                ) |>
+                mutate(y = -y + max_y) |>
                 filter(
                     free | !(type %in% c("variance", "resid_cov", "resid_var", "covariance"))
                 )
@@ -438,8 +438,8 @@ Dag <- R6::R6Class(
 
             what <- validata_what(what)
 
-            pt <- private$get_graph_table() %>%
-                filter(group == first(private$.mod$get_group_labels) | !only_first_group) %>%
+            pt <- private$get_graph_table() |>
+                filter(group == first(private$.mod$get_group_labels) | !only_first_group) |>
                 mutate(x = case_when(
                     is_node & is_left & type == "intercept" ~
                         # ifelse(!is.null(left_intercept.x), left_intercept.x, x),
@@ -468,47 +468,47 @@ Dag <- R6::R6Class(
                         # ifelse(!is.null(covariate_indicator.x), covariate_indicator.x, x),
                         sapply(x, function(x) if(!is.null(covariate_indicator.x)) covariate_indicator.x else x),
                     TRUE ~ x
-                )) %>%
+                )) |>
                 mutate(
                     y = (y-min(y, na.rm = T)) * node_distance_scale.y + min(y, na.rm = T),
                     x = (x-min(x, na.rm = T)) * node_distance_scale.x + min(x, na.rm = T)
                 )
 
-            coord <- pt %>%
-                ungroup() %>%
-                filter(is_node) %>%
-                mutate(myfilter = type %in% !!what | type == "node") %>%
-                # filter(variable_type != "intercept" | "intercept" %in% what) %>%
-                select(id = from_id, x, y, group, type, lhs, rhs, is_node, myfilter) %>%
+            coord <- pt |>
+                ungroup() |>
+                filter(is_node) |>
+                mutate(myfilter = type %in% !!what | type == "node") |>
+                # filter(variable_type != "intercept" | "intercept" %in% what) |>
+                select(id = from_id, x, y, group, type, lhs, rhs, is_node, myfilter) |>
                 arrange(group, id)
 
-            nodes <- pt %>%
-                filter(is_node) %>%
-                mutate(myfilter = type %in% !!what | type == "node") %>%
-                # filter(variable_type != "intercept" | "intercept" %in% what) %>%
-                select(from_id, name, group, type, variable_type, myfilter, is_node) %>%
+            nodes <- pt |>
+                filter(is_node) |>
+                mutate(myfilter = type %in% !!what | type == "node") |>
+                # filter(variable_type != "intercept" | "intercept" %in% what) |>
+                select(from_id, name, group, type, variable_type, myfilter, is_node) |>
                 arrange(group, from_id)
 
-            edges <- pt %>%
-                ungroup() %>%
-                filter(is.na(is_node) | !is_node) %>%
+            edges <- pt |>
+                ungroup() |>
+                filter(is.na(is_node) | !is_node) |>
                 select(from = from_id, to = to_id, label = label, group, type, is_left)
 
-            ylimits <- coord %>%
-                ungroup() %>%
-                filter(myfilter) %>%
+            ylimits <- coord |>
+                ungroup() |>
+                filter(myfilter) |>
                 summarize(
                     min = min(y, na.rm = T) - 0.5 * node_distance_scale.y,
                     max = max(y, na.rm = T) + 0.5 * node_distance_scale.y
-                ) %>% as.list() %>% unlist()
+                ) |> as.list() |> unlist()
 
-            xlimits <- coord %>%
-                ungroup() %>%
-                filter(myfilter) %>%
+            xlimits <- coord |>
+                ungroup() |>
+                filter(myfilter) |>
                 summarize(
                     min = min(x, na.rm = T) - 0.5 * node_distance_scale.x,
                     max = max(x, na.rm = T) + 0.5 * node_distance_scale.x
-                ) %>% as.list() %>% unlist()
+                ) |> as.list() |> unlist()
 
             gr <- tbl_graph(nodes, edges = edges)
 

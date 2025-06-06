@@ -54,14 +54,14 @@ Semnova <- R6::R6Class(
             rows <- between[rows]
 
             cols <- sapply(cols, function(col)
-                paste0('private$match_group(group, "', col, '")')) %>%
+                paste0('private$match_group(group, "', col, '")')) |>
                 paste0(collapse = " + ")
 
             if (length(rows) == 0L) {
                 rows <- "."
             } else {
                 rows <- sapply(rows, function(row)
-                    paste0('private$match_group(group, "', row, '")')) %>%
+                    paste0('private$match_group(group, "', row, '")')) |>
                     paste0(collapse = " + ")
             }
 
@@ -109,6 +109,7 @@ Semnova <- R6::R6Class(
             }
         },
 
+        #' @importFrom rlang is_formula
         #' @keywords internal
         parse_sphericity = function(sphericity, idesign, b_matrix) {
             model_terms <- private$get_term_names(idesign)
@@ -265,8 +266,8 @@ Semnova <- R6::R6Class(
 
         #' @keywords internal
         get_covariates_idata = function(description) {
-            lapply(description, function(desc) if (is.numeric(desc)) 0 else desc) %>%
-                (function(x) do.call(expand.grid, x))
+            lapply(description, function(desc) if (is.numeric(desc)) 0 else desc) |>
+                (\(x) do.call(expand.grid, x))()
         },
 
         #' @keywords internal
@@ -337,7 +338,7 @@ Semnova <- R6::R6Class(
                 names(contrasts_arg_covariates) <- manifest_covariates
                 contrasts_arg_covariates <- contrasts_arg_covariates[!sapply(contrasts_arg_covariates, is.null)]
 
-                design_covariates <- paste0("~", paste0(manifest_covariates, collapse = "*")) %>% as.formula()
+                design_covariates <- paste0("~", paste0(manifest_covariates, collapse = "*")) |> as.formula()
 
                 opts_old <- options(na.action='na.pass')
                 b_matrix_covariates <- model.matrix(
@@ -350,13 +351,13 @@ Semnova <- R6::R6Class(
                 effect_names_covariates <- c("Intercept", attr(terms(design_covariates), "term.labels"))
                 effect_indices_covariates <- attr(b_matrix_covariates, "assign")
 
-                data <- data %>%
+                data <- data |>
                     select_at(names(data)[!(names(data) %in% manifest_covariates)])
 
-                # b_matrix_covariates <- b_matrix_covariates[,-1,drop=F] %>%
+                # b_matrix_covariates <- b_matrix_covariates[,-1,drop=F] |>
                 #     as_tibble(.name_repair = "universal")
 
-                b_matrix_covariates <- b_matrix_covariates[,-1,drop=F] %>%
+                b_matrix_covariates <- b_matrix_covariates[,-1,drop=F] |>
                     as_tibble()
                 names(b_matrix_covariates) <-
                     vctrs::vec_as_names(names(b_matrix_covariates),
@@ -416,7 +417,7 @@ Semnova <- R6::R6Class(
                 dimnames(c_matrix_covariates) <- list("(Intercept)", "dummy")
                 b_matrix_covariates <- solve(c_matrix_covariates)
 
-                effect_names_covariates <- "Intercept"
+                effect_names_covariates <- "(Intercept)"
                 effect_indices_covariates <- 0
                 attr(b_matrix_covariates, "assign") <- 0
                 return(list(
@@ -437,7 +438,7 @@ Semnova <- R6::R6Class(
             }
 
             covariates_mmodel <- list()
-            effect_names_covariates <- "Intercept"
+            effect_names_covariates <- "(Intercept)"
             effect_indices_covariates <- 0
 
             if (!is.null(latent_covariates)) {
@@ -469,7 +470,7 @@ Semnova <- R6::R6Class(
                 "~",
                 manifest_design,
                 latent_design
-            ) %>% as.formula()
+            ) |> as.formula()
 
             opts_old <- options(na.action='na.pass')
             b_matrix_covariates <- model.matrix(
@@ -479,16 +480,16 @@ Semnova <- R6::R6Class(
             )
             options(opts_old)
 
-            effect_names_covariates <- c("Intercept", attr(terms(design_covariates), "term.labels"))
+            effect_names_covariates <- c("(Intercept)", attr(terms(design_covariates), "term.labels"))
             effect_indices_covariates <- attr(b_matrix_covariates, "assign")
 
-            data <- data %>%
+            data <- data |>
                 select_at(names(data)[!(names(data) %in% c(manifest_covariates, names(latent_covariates)))])
 
-            # b_matrix_covariates <- b_matrix_covariates[,-1,drop=F] %>%
+            # b_matrix_covariates <- b_matrix_covariates[,-1,drop=F] |>
             #     as_tibble(.name_repair = "universal")
 
-            b_matrix_covariates_tbl <- b_matrix_covariates[,-1,drop=F] %>%
+            b_matrix_covariates_tbl <- b_matrix_covariates[,-1,drop=F] |>
                 as_tibble()
             b_matrix_covariates_tbl <- b_matrix_covariates_tbl[,!(names(b_matrix_covariates_tbl) %in% names(latent_covariates))]
             b_matrix_names <- names(b_matrix_covariates_tbl)
@@ -594,8 +595,8 @@ Semnova <- R6::R6Class(
         parse_mmodel_eta = function(indicators, idata_within) {
             indicators_levels <- unlist(indicators)
 
-            etas_mmodel <- apply(idata_within, 1, paste0, collapse = "_") %>%
-                (function(etas) lapply(etas, function(eta) paste0(".", indicators_levels, "_", eta)))
+            etas_mmodel <- apply(idata_within, 1, paste0, collapse = "_") |>
+                (\(etas) lapply(etas, function(eta) paste0(".", indicators_levels, "_", eta)))()
 
             etas <- paste0(".eta", 1:nrow(idata_within))
             names(etas_mmodel) <- etas
@@ -663,75 +664,135 @@ Semnova <- R6::R6Class(
         },
 
         #' @keywords internal
+        #' @importFrom stringr str_replace_all
         parse_hypotheses = function(within_design, between_design, covariates_design) {
             # M matrices
 
-            Ms <- lapply(unique(within_design$effect_indices), function(effect_index) {
+            # Ms <- lapply(unique(within_design$effect_indices), function(effect_index) {
+            #
+            #     effect <- within_design$effect_names[effect_index]
+            #
+            #     lapply(1:length(within_design$effect_indices), function(col_index) {
+            #         my_col <- within_design$effect_indices[col_index]
+            #         if (my_col == effect_index) as.integer((1:nrow(within_design$c_matrix)) == col_index) else NULL
+            #     }) |> (\(cols) do.call(cbind, cols))()
+            # })
+            #
+            # names(Ms) <- within_design$effect_names
 
-                effect <- within_design$effect_names[effect_index]
+            effect_indices <- within_design$effect_indices
+            effect_names <- within_design$effect_names
+            b_colnames <- colnames(within_design$b_matrix)
+            num_rows <- nrow(within_design$c_matrix)
 
-                lapply(1:length(within_design$effect_indices), function(col_index) {
-                    my_col <- within_design$effect_indices[col_index]
-                    if (my_col == effect_index) as.integer((1:nrow(within_design$c_matrix)) == col_index) else NULL
-                }) %>% (function(cols) do.call(cbind, cols))
+            Ms <- lapply(unique(effect_indices), function(effect_index) {
+                cols <- which(effect_indices == effect_index)
+                mat <- matrix(0, nrow = num_rows, ncol = length(cols))
+                for (i in seq_along(cols)) mat[cols[i], i] <- 1
+                colnames(mat) <- b_colnames[cols]
+                mat
             })
 
-            names(Ms) <- within_design$effect_names
+            names(Ms) <- effect_names
+
+
+            # G matrices
+
+            # Gs <- lapply(unique(between_design$effect_indices), function(effect_index) {
+            #     effect <- between_design$effect_indices[effect_index]
+            #
+            #     between_design$c_matrix[between_design$effect_indices == effect_index,,drop = F]
+            # })
+            #
+            # names(Gs) <- between_design$effect_names
+
+            effect_indices <- between_design$effect_indices
+            effect_names <- between_design$effect_names
+            c_matrix <- between_design$c_matrix
+
+            Gs <- lapply(unique(effect_indices), function(effect_index) {
+                rows <- which(effect_indices == effect_index)
+                mat <- c_matrix[rows, , drop = FALSE]
+                mat
+            })
+
+            names(Gs) <- effect_names
+
 
             # L matrices
 
-            Ls <- lapply(unique(between_design$effect_indices), function(effect_index) {
-                effect <- between_design$effect_indices[effect_index]
-
-                between_design$c_matrix[between_design$effect_indices == effect_index,,drop = F]
-            })
-
-            names(Ls) <- between_design$effect_names
-
-
-            # P matrices
-
             if (length(covariates_design$covariates_mmodel) > 0L) {
-                Ps <- lapply(unique(covariates_design$effect_indices), function(effect_index) {
+                effect_names <- covariates_design$effect_names
+                effect_indices <- covariates_design$effect_indices
+                effect_variable_names <- colnames(covariates_design$b_matrix_covariates)
 
-                    effect <- covariates_design$effect_names[effect_index]
+                Ls <- lapply(unique(effect_indices), function(effect_index) {
+                    rows <- which(effect_indices == effect_index)
 
-                    lapply(1:length(covariates_design$effect_indices), function(col_index) {
-                        my_col <- covariates_design$effect_indices[col_index]
-                        if (my_col == effect_index) as.integer((1:length(covariates_design$effect_indices)) == col_index) else NULL
-                    }) %>% (function(cols) do.call(rbind, cols))
+                    mat <- lapply(rows, function(col_index) {
+                        as.integer((1:length(effect_indices)) == col_index)
+                    }) |> (\(x) do.call(rbind, x))()
+
+                    # Add dimnames
+                    rownames(mat) <- effect_variable_names[rows]
+                    colnames(mat) <- effect_variable_names
+
+                    mat
                 })
 
-                names(Ps) <- covariates_design$effect_names
+                names(Ls) <- covariates_design$effect_names
 
             } else {
-                Ps <- list(matrix(1, ncol = 1, nrow = 1))
-                names(Ps) <- c("Intercept")
+                Ls <- list(matrix(1, ncol = 1, nrow = 1,
+                                  dimnames = list("(Intercept)", "(Intercept)")))
+                names(Ls) <- "(Intercept)"
             }
 
             # create hypotheses
 
             hypotheses <- list()
 
-            for (P_index in 1:length(Ps)) {
-                P_name <- names(Ps)[P_index]
-                P_matrix <- Ps[[P_index]]
+            for (L_index in 1:length(Ls)) {
+                L_name <- names(Ls)[L_index]
+                L_matrix <- Ls[[L_index]]
 
-                for (L_index in 1:length(Ls)) {
-                    L_name <- names(Ls)[L_index]
-                    L_matrix <- Ls[[L_index]]
+                for (G_index in 1:length(Gs)) {
+                    G_name <- names(Gs)[G_index]
+                    G_matrix <- Gs[[G_index]]
 
                     for (M_index in 1:length(Ms)) {
                         M_name <- names(Ms)[M_index]
                         M_matrix <- Ms[[M_index]]
 
-                        hypothesis_name <- c(M_name, L_name, P_name)
+                        # --- Step 1: Extract active labels ---
+                        within_labels <- colnames(M_matrix)[colSums(abs(M_matrix)) > 0]
+                        between_labels <- rownames(G_matrix)[rowSums(abs(G_matrix)) > 0]
+                        covariate_labels <- rownames(L_matrix)[rowSums(abs(L_matrix)) > 0]
+
+                        # --- Step 2: Construct full contrast label combinations ---
+                        raw_contrast_names <- as.vector(outer(
+                            within_labels,
+                            as.vector(outer(between_labels, covariate_labels, paste, sep = ":")),
+                            paste, sep = ":"
+                        ))
+
+                        # --- Step 3: Clean intercept-only and partial intercept labels ---
+                        contrast_names <- raw_contrast_names |>
+                            # Remove "(Intercept)" along with adjacent colons
+                            str_replace_all("(^|:)\\(Intercept\\)(?=(:|$))", "") |>
+                            # Clean up any leading/trailing/double colons
+                            str_replace_all("^:|:$|::", "")
+
+                        # Optional: Replace empty strings with "Intercept" (if desired)
+                        contrast_names[contrast_names == ""] <- "(Intercept)"
+
+                        hypothesis_name <- c(M_name, G_name, L_name)
 
                         hypothesis_name <-
-                            hypothesis_name[hypothesis_name != "Intercept"]
+                            hypothesis_name[!(hypothesis_name %in% c("(Intercept)", "Intercept"))]
 
                         if (length(hypothesis_name) == 0L) {
-                            hypothesis_name <- "Intercept"
+                            hypothesis_name <- "(Intercept)"
                         } else {
                             hypothesis_name <- paste0(hypothesis_name, collapse = ":")
                         }
@@ -740,14 +801,17 @@ Semnova <- R6::R6Class(
                             hypotheses,
                             Hypothesis$new(
                                 M = M_matrix,
+                                G = G_matrix,
                                 L = L_matrix,
-                                P = P_matrix,
-                                description = hypothesis_name
+                                description = hypothesis_name,
+                                contrast_names = contrast_names
                             )
                         )
                     }
                 }
             }
+
+            i <- 1
 
             hypotheses
 
@@ -842,7 +906,7 @@ Semnova <- R6::R6Class(
 
                     lapply(resid_indicators, function(resid_indicator) {
                         paste0(".", resid_indicator, "_", etas)
-                    }) %>% (function(x) do.call(c, x))
+                    }) |> (\(x) do.call(c, x))()
 
                 })
 
@@ -856,7 +920,7 @@ Semnova <- R6::R6Class(
 
                     lapply(resid_indicators, function(resid_indicator) {
                         paste0(".", resid_indicator, "_", etas)
-                    }) %>% (function(x) do.call(c, x))
+                    }) |> (\(x) do.call(c, x))()
 
                 })
 
@@ -902,174 +966,189 @@ Semnova <- R6::R6Class(
 
         .get_model_frame_old = function() {
             within_data <- lapply(private$data$id, function(id) {
-                private$within_design$idata %>%
-                    as_tibble() %>%
+                private$within_design$idata |>
+                    as_tibble() |>
                     mutate(!!private$id := id)
-            }) %>%
+            }) |>
                 bind_rows()
 
-            between_data <- private$between_design$idata %>%
-                as_tibble() %>%
-                mutate(.group = private$group_labels) %>%
+            between_data <- private$between_design$idata |>
+                as_tibble() |>
+                mutate(.group = private$group_labels) |>
                 inner_join(
-                    private$data %>% select_at(c("id", ".group")),
+                    private$data |> select_at(c("id", ".group")),
                     by = ".group"
-                ) %>%
+                ) |>
                 select(-all_of(".group"))
 
             manifest_covariates <- private$covariates[!sapply(private$covariates, self$is_latent)]
             latent_covariates <- private$covariates[sapply(private$covariates, self$is_latent)]
 
-            fs_covariates <- predict(self$get_sem_object) %>%
-                (function(x) if(!is.list(x)) list(x) else x) %>%
+            fs_covariates <- predict(self$get_sem_object) |>
+                (\(x) if(!is.list(x)) list(x) else x)() |>
                 lapply(function(fs) {
                     fs[,latent_covariates,drop =F]
                 })
 
-            covariates_data <- private$data %>%
-                mutate(case.idx = row_number()) %>%
-                distinct(case.idx, .keep_all=T) %>%
-                select_at(c(".group", "id", "case.idx", manifest_covariates)) %>%
-                group_by(.group) %>%
+            covariates_data <- private$data |>
+                mutate(case.idx = row_number()) |>
+                distinct(case.idx, .keep_all=T) |>
+                select_at(c(".group", "id", "case.idx", manifest_covariates)) |>
+                group_by(.group) |>
                 group_modify(function(tbl, desc) {
                     group_index <- which(desc$.group == private$group_labels)
                     lav_data <- private$sem_obj@Data
                     ids <- lav_data@case.idx[[group_index]]
                     fs <- fs_covariates[[group_index]]
-                    fs <- as_tibble(fs) %>%
+                    fs <- as_tibble(fs) |>
                         mutate(case.idx = ids)
                     full_join(tbl, fs, by = "case.idx")
-                }) %>%
-                ungroup() %>%
+                }) |>
+                ungroup() |>
                 select(-all_of(c(".group", "case.idx")))
 
-            within_data %>%
+            within_data <- within_data |>
                 left_join(
                     between_data,
                     by = "id"
-                ) %>%
+                ) |>
                 left_join (
                     covariates_data,
                     by = "id"
                 )
         },
 
-        .get_model_frame = function() {
-            dat <- private$data_original %>%
+        #' @importFrom lavaan predict
+        .get_model_frame = function(force = F) {
+            if (!is.null(private$model_info$mode_frame) && !force) {
+                return(private$model_info$mode_frame)
+            }
+
+            has_betweens <- ncol(private$between_design$idata) > 1L
+
+            dat <- private$data_original |>
                 select_at(c(
                     private$id,
                     names(private$withins),
+                    # if (has_betweens) names(private$betweens) else NULL
                     names(private$betweens)
-                )) %>%
+                )) |>
                 distinct()
 
             manifest_covariates <- private$covariates[!as.logical(sapply(private$covariates, self$is_latent))]
             latent_covariates <- private$covariates[as.logical(sapply(private$covariates, self$is_latent))]
 
-            fs_covariates <- predict(self$get_sem_object) %>%
-                (function(x) if(!is.list(x)) list(x) else x) %>%
+            fs_covariates <- predict(self$get_sem_object) |>
+                (\(x) if(!is.list(x)) list(x) else x)() |>
                 lapply(function(fs) {
                     fs[,latent_covariates,drop =F]
                 })
 
-            covariates_data <- private$data %>%
-                mutate(case.idx = row_number()) %>%
-                distinct(case.idx, .keep_all=T) %>%
-                select_at(c(".group", private$id, "case.idx", manifest_covariates)) %>%
-                group_by(.group) %>%
+            covariates_data <- private$data |>
+                mutate(case.idx = row_number()) |>
+                distinct(case.idx, .keep_all=T) |>
+                select_at(c(".group", private$id, "case.idx", manifest_covariates)) |>
+                group_by(.group) |>
                 group_modify(function(tbl, desc) {
                     group_index <- which(desc$.group == private$group_labels)
                     lav_data <- private$sem_obj@Data
                     ids <- lav_data@case.idx[[group_index]]
                     fs <- fs_covariates[[group_index]]
-                    fs <- as_tibble(fs) %>%
+                    fs <- as_tibble(fs) |>
                         mutate(case.idx = ids)
                     full_join(tbl, fs, by = "case.idx")
-                }) %>%
-                ungroup() %>%
+                }) |>
+                ungroup() |>
                 select(-all_of(c(".group", "case.idx")))
 
-            dat %>%
+            dat |>
                 left_join (
                     covariates_data,
                     by = private$id
-                ) %>%
+                ) |>
                 ungroup()
         },
 
-        #' @import tidyverse
         #' @importFrom Deriv Simplify
         fill_model_info = function() {
-            private$model_info <- private$.get_model_info()
+            private$model_info <- private$get_model_info(force = T)
         },
 
-        #' @import tidyverse
+        #' @importFrom stringr str_match
+        #' @importFrom lavaan lavInspect
         #' @importFrom Deriv Simplify
-        .get_model_info = function(dat = NULL) {
+        get_model_info = function(dat = NULL, force = F) {
+            if (is.null(dat) && !is.null(private$model_info) && !force) {
+                return(private$model_info)
+            }
+
+            model_frame <- private$.get_model_frame()
 
             if (is.null(dat)) {
-                dat <- private$.get_model_frame()
+                dat <- model_frame
             }
             if (!(all(sapply(private$id, `%in%`, names(dat))))) {
                 for (id in private$id) {
-                    dat <- dat %>%
+                    dat <- dat |>
                         mutate(!!id := row_number())
                 }
             }
 
-            within_conditions <- private$within_design$idata %>%
+            within_conditions <- private$within_design$idata |>
                 apply(1, paste0, collapse = "_")
 
-            within_data <- dat %>%
-                unite(".within_condition", all_of(names(private$withins))) %>%
-                `[[`(".within_condition") %>%
-                sapply(function(x) which(x == within_conditions)) %>%
-                (function(x) private$within_design$b_matrix[x,,drop=F]) %>%
-                bind_cols(dat) %>%
-                select(all_of(c(private$id, colnames(private$within_design$b_matrix)))) %>%
+            within_data <- dat |>
+                unite(".within_condition", all_of(names(private$withins))) |>
+                (\(x) x[[".within_condition"]])() |>
+                sapply(function(x) which(x == within_conditions)) |>
+                (\(x) private$within_design$b_matrix[x,,drop=F])() |>
+                bind_cols(dat) |>
+                select(all_of(c(private$id, colnames(private$within_design$b_matrix)))) |>
                 distinct()
 
             manifest_covariates <- private$covariates[!as.logical(sapply(private$covariates, self$is_latent))]
             latent_covariates <- private$covariates[as.logical(sapply(private$covariates, self$is_latent))]
 
-            between_conditions <- private$between_design$idata %>%
+            between_conditions <- private$between_design$idata |>
                 apply(1, paste0, collapse = "_")
 
-            between_data <- dat %>%
-                unite(".between_condition", all_of(names(private$betweens))) %>%
-                `[[`(".between_condition") %>%
-                sapply(function(x) which(x == between_conditions)) %>%
-                (function(x) private$between_design$b_matrix[x,,drop=F]) %>%
-                bind_cols(dat) %>%
+            between_data <- dat |>
+                unite(".between_condition", all_of(names(private$betweens))) |>
+                (\(x) x[[".between_condition"]])() |>
+                sapply(function(x) which(x == between_conditions)) |>
+                (\(x) private$between_design$b_matrix[x,,drop=F])() |>
+                bind_cols(dat) |>
                 select_at(c(
                     private$id,
                     colnames(private$between_design$b_matrix)
-                )) %>%
+                )) |>
                 distinct()
+
+            has_betweens <- ncol(private$between_design$idata) > 1L
 
             between_data <- left_join(
                 within_data,
                 between_data,
                 by = c(private$id, "(Intercept)")
-            ) %>%
-                select_at(names(between_data)) %>%
+            ) |>
+                select_at(names(between_data)) |>
                 select(all_of(c(private$id, "(Intercept)")), everything())
 
-            covariates_data <- dat %>%
+            covariates_data <- dat |>
                 select_at(c(
                     private$id,
                     manifest_covariates,
                     latent_covariates
-                )) %>%
+                )) |>
                 distinct()
 
             covariates_data <- left_join(
                 within_data,
                 covariates_data,
                 by = c(private$id)
-            ) %>%
-                select_at(names(covariates_data)) %>%
-                mutate(`(Intercept)` = 1) %>%
+            ) |>
+                select_at(names(covariates_data)) |>
+                mutate(`(Intercept)` = 1) |>
                 select(all_of(c(private$id, "(Intercept)")), everything())
 
             within_terms <- terms(private$within_design$idesign)
@@ -1113,7 +1192,7 @@ Semnova <- R6::R6Class(
 
             attr_formula <- c()
             attr_order <- vector("numeric", nterms)
-            b_matrix <- within_data %>%
+            b_matrix <- within_data |>
                 select_at(private$id)
             attr_assign <- c()
             attr_term_labels <- c()
@@ -1213,17 +1292,17 @@ Semnova <- R6::R6Class(
                                         ), collapse = ":")
                                     col_name <- if (col_name == "") "(Intercept)" else col_name
 
-                                    within_col <- within_data %>%
-                                        select(-all_of(private$id)) %>%
-                                        `[[`(within_index)
+                                    within_col <- within_data |>
+                                        select(-all_of(private$id)) |>
+                                        (\(x) x[[within_index]])()
 
-                                    between_col <- between_data %>%
-                                        select(-all_of(private$id)) %>%
-                                        `[[`(between_index)
+                                    between_col <- between_data |>
+                                        select(-all_of(private$id)) |>
+                                        (\(x) x[[between_index]])()
 
-                                    covariates_col <- covariates_data %>%
-                                        select(-all_of(private$id)) %>%
-                                        `[[`(covariates_index)
+                                    covariates_col <- covariates_data |>
+                                        select(-all_of(private$id)) |>
+                                        (\(x) x[[covariates_index]])()
 
                                     b_matrix <- bind_cols(
                                         b_matrix,
@@ -1240,11 +1319,12 @@ Semnova <- R6::R6Class(
 
             attr_formula <- paste0(
                 "(", as.character(within_terms)[2], ")*",
+                # if (has_betweens) paste0("(", as.character(between_terms)[2], ")*") else NULL,
                 "(", as.character(between_terms)[2], ")*",
                 "(", as.character(covariates_terms)[2], ")"
-            ) %>%
-                Deriv::Simplify() %>%
-                (function(x) paste0("dv ~", x)) %>%
+            ) |>
+                Deriv::Simplify() |>
+                (\(x) paste0("dv ~", x))() |>
                 as.formula()
 
             terms <- attr_formula
@@ -1266,41 +1346,81 @@ Semnova <- R6::R6Class(
                 .Environment = environment()
             )
 
-            b_matrix <- b_matrix %>%
-                select(-all_of(private$id)) %>%
+            b_matrix <- b_matrix |>
+                select(-all_of(private$id)) |>
                 as.matrix()
 
             attr(b_matrix, "assign") <- attr_assign
             attr(b_matrix, "contrasts") <- attr_contrasts
 
-            model_frame <- private$.get_model_frame()
-
             xlevels <- c(
                 apply(private$within_design$idata, 2, unique),
+                # if (has_betweens) apply(private$between_design$idata, 2, unique, simplify = F) else NULL,
                 apply(private$between_design$idata, 2, unique, simplify = F),
                 private$covariates_description[sapply(private$covariates_description, function(x) !is.numeric(x))]
             )
             names(xlevels) <- c(
                 names(private$within_design$idata),
+                # if (has_betweens) names(private$between_design$idata) else NULL,
                 names(private$between_design$idata),
                 names(private$covariates_description)[sapply(private$covariates_description, function(x) !is.numeric(x))]
             )
 
-            contrast_matrix <- lapply(private$hypotheses, function(hypothesis) hypothesis$get_contrasts(self)) %>%
-                (function(x) do.call(cbind, x)) %>%
+            contrast_matrix <- lapply(private$hypotheses, function(hypothesis) hypothesis$get_contrasts(self)) |>
+                (\(x) do.call(cbind, x))() |>
                 t()
 
             par_labels <- c(self$get_par_labels)
             vcov <- lavInspect(private$sem_obj, "vcov")[par_labels,par_labels]
-            est <- self$get_estimates() %>%
+            est <- self$get_estimates() |>
                 filter(label %in% par_labels)
-            est <- est[sapply(par_labels, function(label) which(label == est$label)),][["est"]] %>%
+            est <- est[sapply(par_labels, function(label) which(label == est$label)),][["est"]] |>
                 matrix(ncol = 1)
             est <- contrast_matrix %*% est
             rownames(est) <- colnames(b_matrix)
 
+            Sigma <- matrix(0, ncol = length(par_labels), nrow = length(par_labels))
+            par_table <- parTable(self$expose$sem_obj)
+            for (myrow in 1:length(par_labels)) {
+                for (mycol in 1:length(par_labels)) {
+                    if (str_detect(par_labels[myrow], "^\\.alpha_pi_[\\d]+_[\\d]+$")) {
+                        # Match the entire string and extract the groups using capturing parentheses
+                        match <- str_match(par_labels[myrow], "^\\.alpha_pi_([\\d]+)_([\\d]+)$")
+                        pi1 <- match[2]  # First capturing group
+                        g1 <- match[3]   # Second capturing group
+                    } else {
+                        pi1 <- NULL
+                        g1 <- NULL
+                    }
+                    if (str_detect(par_labels[mycol], "^\\.alpha_pi_[\\d]+_[\\d]+$")) {
+                        # Match the entire string and extract the groups using capturing parentheses
+                        match <- str_match(par_labels[mycol], "^\\.alpha_pi_([\\d]+)_([\\d]+)$")
+                        pi2 <- match[2]  # First capturing group
+                        g2 <- match[3]   # Second capturing group
+                    } else {
+                        pi2 <- NULL
+                        g2 <- NULL
+                    }
+                    if (mycol == myrow && is.null(pi1)) {
+                        Sigma[myrow, mycol] <- 0
+                    } else if (mycol == myrow && !is.null(pi1)) {
+                        Sigma[myrow, mycol] <- par_table$est[which(par_table$label == str_glue(".sigma_pi_{pi1}_{pi1}_{g1}"))]
+                    } else if (is.null(pi1) || is.null(pi2)) {
+                        Sigma[myrow, mycol] <- Sigma[mycol, myrow] <- 0
+                    } else {
+                        if (as.numeric(pi1) > as.numeric(pi2)) {
+                            tmp <- pi1
+                            pi1 <- pi2
+                            pi2 <- tmp
+                        }
+                        Sigma[myrow, mycol] <- Sigma[mycol, myrow] <- par_table$est[which(par_table$label == str_glue(".sigma_pi_{pi1}_{pi2}_{g1}"))]
+                    }
+                }
+            }
+
+            Sigma <- contrast_matrix %*% Sigma %*% t(contrast_matrix)
             vcov <- contrast_matrix %*% vcov %*% t(contrast_matrix)
-            dimnames(vcov) <- list(
+            dimnames(Sigma) <- dimnames(vcov) <- list(
                 colnames(b_matrix),
                 colnames(b_matrix)
             )
@@ -1312,6 +1432,7 @@ Semnova <- R6::R6Class(
                 terms = terms,
                 formula = attr_formula,
                 vcov = vcov,
+                Sigma = Sigma,
                 coefficients = est
             )
         }
@@ -1384,6 +1505,60 @@ Semnova <- R6::R6Class(
         vcov = function() {
             private$model_info$vcov
         },
+        Sigma = function() {
+            private$model_info$Sigma
+        },
+
+        coefficients_new = function() {
+            result <- lapply(self$get_hypotheses, function(hypo) {
+                L <- hypo$get_L
+                M <- hypo$get_M
+                G <- hypo$get_G
+                B_array <- self$B_array_est
+                B_vec <- self$B_vec_est
+                B_vec_vcov <- self$B_vec_vcov
+                B_var_vec_est <- self$B_var_vec_est
+
+                R <- semnova:::helper$construct_R_matrix(
+                    B_array = B_array,
+                    L = L,
+                    M = M,
+                    G = G
+                )$R
+
+                # est
+                est <- as.vector(R %*% B_vec)
+
+                # stderr
+                my_se <- sqrt(diag(R %*% B_vec_vcov %*% t(R)))
+
+                # interindividual differences
+                my_sd <- sqrt(diag(R %*% B_var_vec_est %*% t(R)))
+
+                result <- data.frame(
+                    #effect = paste0(hypo$get_description, 1:length(est)),
+                    effect = hypo$get_contrast_names,
+                    Estimate = est,
+                    `Std. Error` = my_se,
+                    `z value` = est/my_se,
+                    `CI 2.5%` = est + qnorm(0.025) * my_se,
+                    `CI 97.5%` = est + qnorm(0.975) * my_se,
+                    SD = my_sd,
+                    `Estimate - SD` = est - my_sd,
+                    `Estimate + SD` = est + my_sd,
+                    `Pr(>|z|)` = pnorm(-abs(est/my_se)) + 1 - pnorm(abs(est/my_se)),
+                    check.names = F
+                )
+                result
+            })
+
+            result <- do.call(rbind, result)
+            rownames(result) <- result$effect
+            result$effect <- NULL
+            class(result) <- c("anova", "data.frame")
+            result
+        },
+
         coefficients = function() {
             # private$model_info$coefficients
 
@@ -1416,8 +1591,41 @@ Semnova <- R6::R6Class(
     public = list(
 
         #' @export
+        predict = function(newdata, interval = c("ci", "sd"), level = NULL) {
+            interval <- match.arg(interval)
+
+            if (interval == "ci") {
+                vcov <- self$vcov
+                if (is.null(level)) {
+                    level <- 0.95
+                }
+            } else {
+                if (is.null(level)) {
+                    level <- 1-(1-pnorm(1))*2
+                }
+                vcov <- self$Sigma
+            }
+
+            has_betweens <- ncol(private$between_design$idata) > 1L
+
+            if (!has_betweens) {
+                newdata[[".group"]] <- "1"
+            }
+
+            X <- self$get_model_matrix(newdata)
+            coefs <- as.matrix(self$coefficients)[,1, drop = F]
+
+            est <- as.vector(X %*% coefs)
+            sterr <- sqrt(diag(X %*% vcov %*% t(X)))
+            lwr <- est - qnorm(1-(1-level)/2) * sterr
+            upr <- est + qnorm(1-(1-level)/2) * sterr
+
+            data.frame(fit = est, lwr = lwr, upr = upr)
+        },
+
+        #' @export
         get_model_matrix = function(dat = NULL) {
-            private$.get_model_info(dat)$model_matrix
+            private$get_model_info(dat)$model_matrix
         },
 
         #' @description Semnova class constructor.
@@ -1473,7 +1681,7 @@ Semnova <- R6::R6Class(
         #' should be scaled to length equal to one.
         #' @param ... Parameters passed to the Lgc Class constructor.
         #' @export
-        #' @import tidyverse
+        #' @import dplyr tidyr
         #' @importFrom vctrs vec_as_names
         specify = function(
             data,
@@ -1515,13 +1723,13 @@ Semnova <- R6::R6Class(
 
             # specify: 1. sort data (not necessary but looks nice) -------------
 
-            data <- data %>%
+            data <- data |>
                 arrange_at(c(
                     id,
                     betweens,
                     withins,
                     indicators
-                )) %>%
+                )) |>
                 mutate_all(function(x) if (is.factor(x)) droplevels(x) else x)
 
             # specify: 2. parse withins argument -------------------------------
@@ -1538,7 +1746,7 @@ Semnova <- R6::R6Class(
             # specify: 3. parse indicators argument ----------------------------
 
             if (is.null(indicators)) {
-                data <- data %>%
+                data <- data |>
                     mutate(.indicators = !!dv)
 
                 indicators <- list(.indicators = dv)
@@ -1555,7 +1763,7 @@ Semnova <- R6::R6Class(
             if (is.null(betweens)) {
                 betweens <- list("1")
                 names(betweens) <- group
-                data <- data %>%
+                data <- data |>
                     mutate(!!group := "1")
             } else {
                 betweens_names <- betweens
@@ -1565,7 +1773,7 @@ Semnova <- R6::R6Class(
 
             private$data_original <- data
 
-            data <- data %>%
+            data <- data |>
                 unite(!!group, !!names(betweens))
 
             # specify: 4. create covariate interactions ------------------------
@@ -1616,32 +1824,36 @@ Semnova <- R6::R6Class(
                 group, unlist(covariates_mmodel, use.names = FALSE)
             )
 
-            uniquely_identified <- data %>%
-                select_at(selected_vars) %>%
+            uniquely_identified <- data |>
+                select_at(selected_vars) |>
                 group_by_at(c(
                     id,
                     group,
                     names(indicators),
                     unlist(covariates_mmodel, use.names = FALSE),
                     names(withins)
-                )) %>%
-                summarize(n = n(), .group = "keep") %>%
-                ungroup() %>%
-                summarize(n = max(n)) %>%
-                `[[`("n")
+                )) |>
+                summarize(n = n(), .group = "keep") |>
+                ungroup() |>
+                summarize(n = max(n)) |>
+                (\(x) x[["n"]])()
 
             if (uniquely_identified != 1L) {
                 stop("Cases are not uniquely identified.")
             }
 
-            private$data_original <- private$data_original %>%
-                select_at(c(
-                    id, dv, names(indicators), names(withins),
-                    names(betweens), unlist(covariates_mmodel, use.names = FALSE))
-                )
+            private$data_original <- private$data_original |>
+                select(any_of(c(
+                    id, dv,
+                    names(indicators),
+                    names(withins),
+                    names(betweens),
+                    manifest_covariates,
+                    unlist(covariates_mmodel, use.names = FALSE)
+                )))
 
-            dat_wide <- data %>%
-                select_at(selected_vars) %>%
+            dat_wide <- data |>
+                select_at(selected_vars) |>
                 pivot_wider(
                     id_cols = all_of(c(
                         id,
@@ -1890,30 +2102,50 @@ Semnova <- R6::R6Class(
             )
 
             invisible(self)
-        }
+        },
 
-        # #' @description Returns the point estimates of the model.
-        # #' @param ... Additional arguments.
-        # #' @importFrom lavaan parTable
-        # #' @importFrom stringr str_detect str_extract
-        # get_estimates = function(
-        #     ...
-        # ) {
-        #
-        #     estimates <- super$get_estimates(...)
-        #
-        #     idata <- private$parse_between_design(
-        #         private$betweens,
-        #         list(),
-        #         FALSE
-        #     )$idata
-        #
-        #     bind_cols(
-        #         estimates,
-        #         idata[estimates$group_index,,drop = F] %>% as_tibble()
-        #     )
-        #
-        # }
+        #' @importFrom stringr str_split
+        plot = function(focal_predictors = NULL, hypothesis = NULL, type = c("effect", "marginal"), ...) {
+            focal.predictors <- focal_predictors
+            predictors_to_hypothesis = function(focal.predictors) {
+                focal.predictors_ordered <- focal.predictors[order(focal.predictors)]
+                hypo_matches <- sapply(self$get_hypotheses, function(hypo) {
+                    hypo_predictors <- unlist(str_split(hypo$get_description, ":"))
+                    hypo_predictors_ordered <- hypo_predictors[order(hypo_predictors)]
+                    if (
+                        length(hypo_predictors_ordered) == length(focal.predictors_ordered) &&
+                        all(hypo_predictors_ordered == focal.predictors_ordered)
+                    ) {
+                        TRUE
+                    } else {
+                        FALSE
+                    }
+                })
+                if (sum(hypo_matches) == 0L) {
+                    return(NULL)
+                } else if (sum(hypo_matches) > 1L) {
+                    return(NULL)
+                } else {
+                    self$get_hypotheses[[which(hypo_matches)]]
+                }
+            }
+
+            type <- match.arg(type)
+
+            if (type == "marginal") {
+                return(plot(Effect(focal.predictors, self, ...), ...))
+            }
+
+            if (type == "effect") {
+                if (is.null(hypothesis) && is.null(focal.predictors)) {
+                    stop("One of hypothesis and focal.predictors must be provided")
+                }
+                if (is.null(hypothesis) && !is.null(focal.predictors)) {
+                    hypothesis <- predictors_to_hypothesis(focal.predictors)
+                }
+                return(ContrastPlot$new()$plot(self, hypothesis = hypothesis, ...))
+            }
+        }
 
     )
 )
@@ -1941,20 +2173,27 @@ Effect.Semnova <- function (focal.predictors, mod, ...) {
     SemnovaEffect$new(mod)$effect(focal.predictors, ...)
 }
 
-#' @rdname semnova
-#' @export
-plot.Semnova <- function (mod, focal.predictors, ...) {
-    plot(Effect(focal.predictors, mod, ...), ...)
-}
+# #' @rdname semnova
+# #' @export
+# plot.Semnova <- function (mod, focal.predictors, ...) {
+#     plot(Effect(focal.predictors, mod, ...), ...)
+# }
 
 #' @rdname semnova
 #' @export
 coefficients.Semnova <- function (object, ...) {
-    object$coefficients(...)
+    object$coefficients
 }
 
 #' @rdname semnova
 #' @export
 coef.Semnova <- function (object, ...) {
-    object$coefficients(...)
+    object$coefficients
+}
+
+#' @rdname semnova
+#' @export
+#' @method predict Semnova
+predict.Semnova <- function (object, ...) {
+    object$predict(...)
 }

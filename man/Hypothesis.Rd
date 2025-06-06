@@ -10,11 +10,13 @@ Some description
 \section{Active bindings}{
 \if{html}{\out{<div class="r6-active-bindings">}}
 \describe{
-\item{\code{get_L}}{Return the L matrix of the hypothesis.}
+\item{\code{get_G}}{Return the G matrix of the hypothesis.}
 
 \item{\code{get_M}}{Return the M matrix of the hypothesis.}
 
-\item{\code{get_P}}{Return the P matrix of the hypothesis.}
+\item{\code{get_L}}{Return the L matrix of the hypothesis.}
+
+\item{\code{get_description}}{Return the description of the hypothesis.}
 
 \item{\code{get_description}}{Return the description of the hypothesis.}
 
@@ -27,6 +29,7 @@ Some description
 \itemize{
 \item \href{#method-Hypothesis-new}{\code{Hypothesis$new()}}
 \item \href{#method-Hypothesis-get_wald_string}{\code{Hypothesis$get_wald_string()}}
+\item \href{#method-Hypothesis-get_wald_string_deprecated}{\code{Hypothesis$get_wald_string_deprecated()}}
 \item \href{#method-Hypothesis-get_contrasts}{\code{Hypothesis$get_contrasts()}}
 \item \href{#method-Hypothesis-get_contrasts_old}{\code{Hypothesis$get_contrasts_old()}}
 \item \href{#method-Hypothesis-clone}{\code{Hypothesis$clone()}}
@@ -41,7 +44,14 @@ Validates the input for different functions.
 
 Hypothesis class constructor.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Hypothesis$new(M = NULL, L = NULL, P = NULL, description = "")}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{Hypothesis$new(
+  M = NULL,
+  G = NULL,
+  L = NULL,
+  K = NULL,
+  description = "",
+  contrast_names = ""
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -50,9 +60,9 @@ Hypothesis class constructor.
 \item{\code{M}}{M matrix. Can be omitted if the number of dependent
 variables equals 1.}
 
-\item{\code{L}}{L matrix. Can be omitted if the number of groups equals 1.}
+\item{\code{G}}{G matrix. Can be omitted if the number of groups equals 1.}
 
-\item{\code{P}}{P matrix. Can be omitted if the number of covariates
+\item{\code{L}}{L matrix. Can be omitted if the number of covariates
 equals 0.}
 
 \item{\code{description}}{Character. Description of the hypothesis. Can be
@@ -67,9 +77,18 @@ any character.}
 \if{html}{\out{<a id="method-Hypothesis-get_wald_string"></a>}}
 \if{latex}{\out{\hypertarget{method-Hypothesis-get_wald_string}{}}}
 \subsection{Method \code{get_wald_string()}}{
-Returns the a string for the Wald test.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{Hypothesis$get_wald_string(lgc)}\if{html}{\out{</div>}}
+}
+
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Hypothesis-get_wald_string_deprecated"></a>}}
+\if{latex}{\out{\hypertarget{method-Hypothesis-get_wald_string_deprecated}{}}}
+\subsection{Method \code{get_wald_string_deprecated()}}{
+Returns the a string for the Wald test.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Hypothesis$get_wald_string_deprecated(lgc)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{

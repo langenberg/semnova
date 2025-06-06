@@ -103,18 +103,18 @@ plot(power)
                 break_rhs = FALSE
             )
 
-            hypothesis <- mod$get_hypotheses[[1]] %>% helper$to_str()
+            hypothesis <- mod$get_hypotheses[[1]] |> helper$to_str()
 
-            sample_size <- rep_len(50, length(mod$get_group_labels)) %>%
-                helper$to_str() %>%
+            sample_size <- rep_len(50, length(mod$get_group_labels)) |>
+                helper$to_str() |>
                 paste0()
 
-            new_script <- private$power_template_lgc %>%
-                str_replace("##data_syntax##", data_syntax) %>%
-                str_replace("##hypothesis##", hypothesis) %>%
-                str_replace("##args##", args_str) %>%
-                str_replace("##sample_size##", sample_size) %>%
-                style_text() %>%
+            new_script <- private$power_template_lgc |>
+                str_replace("##data_syntax##", data_syntax) |>
+                str_replace("##hypothesis##", hypothesis) |>
+                str_replace("##args##", args_str) |>
+                str_replace("##sample_size##", sample_size) |>
+                style_text() |>
                 paste0(collapse = "\n")
 
             if (print) {
@@ -172,18 +172,18 @@ plot(power)
                 break_rhs = FALSE
             )
 
-            sample_size <- rep_len(50, length(mod$get_group_labels)) %>%
-                helper$to_str() %>%
+            sample_size <- rep_len(50, length(mod$get_group_labels)) |>
+                helper$to_str() |>
                 paste0()
 
 
             # 10. create script
 
-            new_script <- private$power_template_semnova %>%
-                str_replace("##data_syntax##", data_syntax) %>%
-                str_replace("##args##", args_str) %>%
-                str_replace("##sample_size##", sample_size) %>%
-                style_text() %>%
+            new_script <- private$power_template_semnova |>
+                str_replace("##data_syntax##", data_syntax) |>
+                str_replace("##args##", args_str) |>
+                str_replace("##sample_size##", sample_size) |>
+                style_text() |>
                 paste0(collapse = "\n")
 
             if (print) {
@@ -228,9 +228,9 @@ plot(power)
                 return(invisible(self))
             }
 
-            private$results$estimates_aggregated %>%
-                select(-label) %>%
-                group_by(group) %>%
+            private$results$estimates_aggregated |>
+                select(-label) |>
+                group_by(group) |>
                 group_walk(function(tbl, desc) {
                     # cat("Group: ")
                     # cat(desc$group)
@@ -239,7 +239,7 @@ plot(power)
                         tbl,
                         format = "simple",
                         caption = if (length(private$mod$get_group_labels) == 1L) NULL else desc$group
-                    ) %>%
+                    ) |>
                         print()
                     invisible()
                 })
@@ -253,8 +253,8 @@ plot(power)
                 return(invisible(self))
             }
 
-            private$results$tests_aggregated %>%
-                kableExtra::kable(format = "simple", caption = "Hypotheses") %>%
+            private$results$tests_aggregated |>
+                kableExtra::kable(format = "simple", caption = "Hypotheses") |>
                 print()
 
             invisible(self)

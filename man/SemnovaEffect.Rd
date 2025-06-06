@@ -41,7 +41,7 @@ vcov.SemnovaEffect(object, complete = TRUE, ...)
 
 \method{coefficients}{SemnovaEffect}(object, ...)
 
-coef.SemnovaEffect(object, ...)
+\method{coef}{SemnovaEffect}(object, ...)
 
 nonest.basis(x, ...)
 
@@ -98,7 +98,7 @@ Some description
 \if{latex}{\out{\hypertarget{method-SemnovaEffect-effect}{}}}
 \subsection{Method \code{effect()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{SemnovaEffect$effect(focal.predictors, ...)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{SemnovaEffect$effect(focal.predictors, interval = c("ci", "sd"), ...)}\if{html}{\out{</div>}}
 }
 
 }

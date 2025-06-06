@@ -69,7 +69,7 @@ Lgc <- R6Class(
             cols <- private$group
 
             cols <- sapply(cols, function(col)
-                paste0('private$match_group(group, "', col, '")')) %>%
+                paste0('private$match_group(group, "', col, '")')) |>
                 paste0(collapse = " + ")
 
             form <- paste0(". ~", cols)
@@ -98,7 +98,7 @@ Lgc <- R6Class(
             invariance_within = "strong",
             compound_symmetry = FALSE,
             sphericity = list(),
-            c_matrix_between = TRUE,
+            c_matrix_between = NULL,
             invariance_between = "strong",
             covariates = NULL,
             fixed_covariates = TRUE,
@@ -297,8 +297,8 @@ Lgc <- R6Class(
             }
 
             extract_greek <- function(label) {
-                label %>%
-                    str_replace("^[\\.]*", "") %>%
+                label |>
+                    str_replace("^[\\.]*", "") |>
                     str_replace("(_[a-zA-Z0-9]*)+$", "")
             }
 
@@ -311,7 +311,7 @@ Lgc <- R6Class(
                 !is.null(label) &&
                     !is.na(label) &&
                     has_pattern(label) &&
-                    (label %>% extract_greek() %>% is_greek())
+                    (label |> extract_greek() |> is_greek())
             }
 
             sapply(labels, is_label_internal)
@@ -322,6 +322,12 @@ Lgc <- R6Class(
         #' @description Prints coefficients for the Lgc object.
         #' @export
         coefficients = function(...) {
+            NULL
+        },
+
+        #' @description Prints coefficients for the Lgc object.
+        #' @export
+        coefficients_new = function(...) {
             NULL
         },
 
@@ -348,6 +354,117 @@ Lgc <- R6Class(
         #' @field get_par_labels Read only. Returns an array of parameter labels used in the lavaan syntax.
         get_par_labels = function() {
             private$par_table$get_par_labels(
+                pis = private$pis,
+                groups = private$group_labels,
+                covariates = private$covariates
+            )
+        },
+
+        B_array_labels = function() {
+            private$par_table$B_array_labels(
+                pis = private$pis,
+                groups = private$group_labels,
+                covariates = private$covariates
+            )
+        },
+
+        B_vec_labels = function() {
+            result <- as.vector(self$B_array_labels)
+            names(result) <- result
+            result
+        },
+
+        #' @importFrom lavaan partable
+        B_array_est = function() {
+            labels <- self$B_array_labels
+            par_table <- partable(self$get_sem_object)
+
+            result <- array(0, dim = dim(labels))
+            dimnames(result) <- dimnames(labels)
+
+            for (pi_index in 1:dim(labels)[1]) {
+                for (covariate_index in 1:dim(labels)[2]) {
+                    for (group_index in 1:dim(labels)[3]) {
+                        label <- labels[pi_index, covariate_index, group_index]
+                        result[pi_index, covariate_index, group_index] <-
+                            par_table$est[par_table$label == label]
+                    }
+                }
+            }
+
+            result
+        },
+
+        B_vec_est = function() {
+            result <- as.vector(self$B_array_est)
+            names(result) <- self$B_vec_labels
+            result
+        },
+
+        #' @importFrom lavaan vcov
+        B_vec_vcov = function() {
+            labels <- self$B_vec_labels
+            result <- vcov(self$get_sem_object)[labels,labels]
+            colnames(result) <- rownames(result) <- self$B_vec_labels
+            result
+        },
+
+        B_var_vec_labels = function() {
+            private$par_table$B_var_vec_labels(
+                pis = private$pis,
+                groups = private$group_labels,
+                covariates = private$covariates
+            )
+        },
+
+        #' @importFrom lavaan partable
+        B_var_vec_est = function() {
+            vcov_vec_labels <- self$B_var_vec_labels
+            par_table <- partable(self$get_sem_object)
+
+            vcov_vec_est <- matrix(0, ncol = ncol(vcov_vec_labels), nrow = ncol(vcov_vec_labels))
+            dimnames(vcov_vec_est) <- dimnames(vcov_vec_labels)
+
+            for (myrow in 1:ncol(vcov_vec_labels)) {
+                for (mycol in myrow:ncol(vcov_vec_labels)) {
+                    if (vcov_vec_labels[myrow,mycol] == "0") {
+                        vcov_vec_est[myrow, mycol] <-
+                            vcov_vec_est[mycol, myrow] <-
+                            0
+                    } else {
+                        vcov_vec_est[myrow, mycol] <-
+                            vcov_vec_est[mycol, myrow] <-
+                            par_table$est[par_table$label == vcov_vec_labels[myrow,mycol]]
+                    }
+                }
+            }
+
+            vcov_vec_est
+        },
+
+
+        #' @importFrom lavaan partable
+        get_est = function() {
+            labels <- self$get_par_labels2
+            par_table <- partable(self$get_sem_object)
+
+            result <- array(0, dim = dim(labels))
+
+            for (pi_index in 1:dim(labels)[1]) {
+                for (covariate_index in 1:dim(labels)[2]) {
+                    for (group_index in 1:dim(labels)[3]) {
+                        label <- labels[pi_index, covariate_index, group_index]
+                        result[pi_index, covariate_index, group_index] <-
+                            par_table$est[par_table$label == label]
+                    }
+                }
+            }
+
+            result
+        },
+
+        get_par_labels2 = function() {
+            private$par_table$get_par_labels2(
                 pis = private$pis,
                 groups = private$group_labels,
                 covariates = private$covariates
@@ -401,6 +518,7 @@ Lgc <- R6Class(
             length(private$resid_cov) > 0L
         },
 
+        #' @importFrom stringr str_sub str_replace str_detect
         #' @export
         get_labels = function(
             labels,
@@ -430,20 +548,20 @@ Lgc <- R6Class(
                     return(FALSE)
                 }
 
-                label %>%
-                    str_replace("^[\\.]*", "") %>%
-                    str_replace("[0-9]*$", "") %>%
+                label |>
+                    str_replace("^[\\.]*", "") |>
+                    str_replace("[0-9]*$", "") |>
                     sapply(function(x) x %in% greek_letters | x %in% capital_greek_letters)
             }
 
             extract_greek_wo_number <- function(label) {
-                label %>%
-                    str_replace("^[\\.]*", "") %>%
+                label |>
+                    str_replace("^[\\.]*", "") |>
                     str_replace("[0-9]*$", "")
             }
 
             extract_greek_number <- function(label) {
-                greek_number <- label %>%
+                greek_number <- label |>
                     str_replace("^[\\.]*[a-zA-Z]*", "")
                 if (greek_number == "") {
                     NULL
@@ -463,12 +581,12 @@ Lgc <- R6Class(
             }
 
             extract_greek <- function(label) {
-                str_split(label, "_")[[1]][1] %>%
-                    (function(x) str_sub(x, 2, nchar(x)))
+                str_split(label, "_")[[1]][1] |>
+                    (\(x) str_sub(x, 2, nchar(x)))()
             }
 
             extract_subs <- function(label) {
-                str_split(label, "_")[[1]][-1] %>%
+                str_split(label, "_")[[1]][-1] |>
                     parse_subs()
             }
 
@@ -547,10 +665,10 @@ Lgc <- R6Class(
                         subscript(greek, glue(subs))
                     }
                 } else if (str_detect(label, '^\\.pi[0-9]+')) {
-                    index <- str_extract(label, '[0-9]+$') %>% as.integer()
+                    index <- str_extract(label, '[0-9]+$') |> as.integer()
                     subscript("pi", index-1)
                 } else if (str_detect(label, '^\\.eta[0-9]+')) {
-                    index <- str_extract(label, '[0-9]+$') %>%  as.integer()
+                    index <- str_extract(label, '[0-9]+$') |>  as.integer()
                     subscript("eta", index)
                 } else {
                     label
@@ -892,14 +1010,14 @@ Lgc <- R6Class(
             if (is.null(hypotheses)) {
                 M <- matrix(c(1, rep_len(0, n_etas-1)), ncol = 1)
                 L <- matrix(c(1, rep_len(0, n_groups-1)), nrow = 1)
-                P <- matrix(c(1, rep_len(0, max(0, n_covariates))), nrow = 1)
+                G <- matrix(c(1, rep_len(0, max(0, n_covariates))), nrow = 1)
 
                 hypotheses <- list(
                     Hypothesis$new(
                         description = "dummy",
                         M = M,
                         L = L,
-                        P = P
+                        G = G
                     )
                 )
             }
@@ -975,15 +1093,15 @@ Lgc <- R6Class(
                         NULL
                     }
                 }
-            ) %>% unlist()
+            ) |> unlist()
 
-            # pt <- parTable(self$get_sem_object) %>%
-            #     as_tibble() %>%
-            #     mutate(pvalue = ifelse(free == 0L, NA, 2*pnorm(-abs(est/se)))) %>%
-            #     filter(group > 0L | str_detect(lhs, "^relfreq") | str_detect(lhs, "^\\.[il]_")) %>%
+            # pt <- parTable(self$get_sem_object) |>
+            #     as_tibble() |>
+            #     mutate(pvalue = ifelse(free == 0L, NA, 2*pnorm(-abs(est/se)))) |>
+            #     filter(group > 0L | str_detect(lhs, "^relfreq") | str_detect(lhs, "^\\.[il]_")) |>
             #     select(lhs, op, rhs, group, free, label, est, se, pvalue)
             #
-            # pt <- pt %>%
+            # pt <- pt |>
             #     mutate(
             #         group = case_when(
             #             op == ":=" & str_detect(lhs, "^relfreq") ~ as.integer(str_extract(lhs, "[0-9]+$")),
@@ -1005,25 +1123,25 @@ Lgc <- R6Class(
             #             op == ":=" & str_detect(lhs, "^.\\nu_cov_") ~ "intercept",
             #             TRUE ~ NA_character_
             #         )
-            #     ) %>%
-            #     select(lhs,op,rhs,group,free,label,est,se,group_index,type) %>%
+            #     ) |>
+            #     select(lhs,op,rhs,group,free,label,est,se,group_index,type) |>
             #     arrange(lhs, rhs, op, group)
             #
-            # pt %>%
-            #     arrange(lhs, rhs, op, group) %>%
+            # pt |>
+            #     arrange(lhs, rhs, op, group) |>
             #     kableExtra::kable(format = "simple")
 
-            pt2 <- private$par_table$get_par_table %>%
-                group_by(lhs, rhs, op, group) %>%
+            pt2 <- private$par_table$get_par_table |>
+                group_by(lhs, rhs, op, group) |>
                 group_modify(function(tbl, desc) {
                     max_index <- max(1, which.max(nchar(tbl$value)))
-                    tbl %>%
-                        mutate(value = value[max_index]) %>%
+                    tbl |>
+                        mutate(value = value[max_index]) |>
                         filter(!na)
-                }) %>%
-                ungroup() %>%
-                filter(!na) %>%
-                arrange(op, lhs, rhs) %>%
+                }) |>
+                ungroup() |>
+                filter(!na) |>
+                arrange(op, lhs, rhs) |>
                 mutate(
                     group_index = sapply(group, function(x) if (is.na(x)) 0L else which(x == private$group_labels)),
                     est = suppressWarnings(as.numeric(value)),
@@ -1032,29 +1150,29 @@ Lgc <- R6Class(
                     rhs = ifelse(is.na(rhs), "", rhs),
                     label = ifelse(private$is_label(value), value, ""),
                     free = 1L
-                ) %>%
+                ) |>
                 select(lhs, rhs, free, group_index, label, est, se, pvalue, op)
 
             if (!is.null(private$sem_obj)) {
-                pt_lav <- parTable(self$get_sem_object) %>%
-                    mutate(pvalue = ifelse(free == 0L, NA, 2*pnorm(-abs(est/se)))) %>%
-                    as_tibble() %>%
-                    arrange(op, lhs, rhs) %>%
+                pt_lav <- parTable(self$get_sem_object) |>
+                    mutate(pvalue = ifelse(free == 0L, NA, 2*pnorm(-abs(est/se)))) |>
+                    as_tibble() |>
+                    arrange(op, lhs, rhs) |>
                     mutate(
                         group_index = group,
-                    ) %>%
-                    select(lhs, rhs, op, group_index, est, free, se, pvalue) %>%
+                    ) |>
+                    select(lhs, rhs, op, group_index, est, free, se, pvalue) |>
                     filter(!str_detect(lhs, "^\\.p[0-9]+\\.$"))
 
                 pt2 <- full_join(
-                    pt2 %>% select(-est, -se, -pvalue, -free),
+                    pt2 |> select(-est, -se, -pvalue, -free),
                     pt_lav,
                     by = c("lhs", "op", "rhs", "group_index")
-                ) %>%
+                ) |>
                     filter(group_index > 0L | str_detect(lhs, "^relfreq"))
             }
 
-            pt2 <- pt2 %>%
+            pt2 <- pt2 |>
                 mutate(
                     group_index = case_when(
                         op == ":=" & str_detect(lhs, "^relfreq") ~ as.integer(str_extract(lhs, "[0-9]+$")),
@@ -1075,19 +1193,19 @@ Lgc <- R6Class(
                         op == ":=" & str_detect(lhs, "^.\\nu_cov_") ~ "intercept",
                         TRUE ~ NA_character_
                     )
-                ) %>%
-                select(lhs, op, rhs, group, free, label, est, se, group_index, type, pvalue) %>%
+                ) |>
+                select(lhs, op, rhs, group, free, label, est, se, group_index, type, pvalue) |>
                 arrange(lhs, rhs, op, group)
 
-            # pt2 %>%
-            #     select(lhs,op,rhs,group,free,label,est,se,group_index,type) %>%
-            #     arrange(lhs, rhs, op, group) %>%
+            # pt2 |>
+            #     select(lhs,op,rhs,group,free,label,est,se,group_index,type) |>
+            #     arrange(lhs, rhs, op, group) |>
             #     kableExtra::kable(format = "simple")
 
             pt <- pt2
 
-            pt <- pt %>%
-                filter(!(type == "variance" & !free)) %>%
+            pt <- pt |>
+                filter(!(type == "variance" & !free)) |>
                 mutate(
                     label = ifelse(
                         label == "" & lhs %in% covariates & type %in% c("intercept", "variance"),
@@ -1098,14 +1216,14 @@ Lgc <- R6Class(
                                group_index),
                         label
                     )
-                ) %>%
-                filter(type %in% c("regression", "measurement") | type != "") %>%
+                ) |>
+                filter(type %in% c("regression", "measurement") | type != "") |>
                 filter(type %in% what)
 
             if (only_unique_labels) {
-                pt %>%
-                    select(label, est, se, pvalue) %>%
-                    group_by(label) %>%
+                pt |>
+                    select(label, est, se, pvalue) |>
+                    group_by(label) |>
                     summarize(est = first(est),
                               se = first(se))
             } else {
@@ -1169,11 +1287,11 @@ Lgc <- R6Class(
                 return(invisible(self))
             }
 
-            self$get_estimates() %>%
-                filter(free) %>%
-                select(parameter = label, est, est, group, se, pvalue) %>%
-                mutate(parameter = self$get_labels(parameter, format = "text")) %>%
-                group_by(group) %>%
+            self$get_estimates() |>
+                filter(free) |>
+                select(parameter = label, est, est, group, se, pvalue) |>
+                mutate(parameter = self$get_labels(parameter, format = "text")) |>
+                group_by(group) |>
                 group_walk(function(tbl, desc) {
                     # cat("Group: ")
                     # cat(desc$group)
@@ -1182,7 +1300,7 @@ Lgc <- R6Class(
                         tbl,
                         format = "simple",
                         caption = if (length(private$group_labels) == 1L) NULL else desc$group
-                    ) %>%
+                    ) |>
                         print()
 
                     invisible()
@@ -1211,11 +1329,11 @@ Lgc <- R6Class(
                 self$anova(print = T, ...)
             }
 
-            if (coefficients && !is.null(self$coefficients)) {
+            if (coefficients && !is.null(self$coefficients_new)) {
                 if (fit_measures && !is.null(self$fit_measures(...)) || anova) {
                     cat("\n##############################\n\n")
                 }
-                print(self$coefficients)
+                print(self$coefficients_new)
             }
 
             invisible(self)
@@ -1262,7 +1380,7 @@ Lgc <- R6Class(
                         "]\n"
                     ))
 
-                    invisible(NULL)
+                    invisible(lavaan::fitmeasures(private$sem_obj))
                 } else {
                     lavaan::fitmeasures(private$sem_obj)
                 }
@@ -1295,9 +1413,9 @@ Lgc <- R6Class(
                     ))
                     print(hypothesis$get_M)
                     cat("\nL Matrix:\n")
+                    print(hypothesis$get_G)
+                    cat("\nL Matrix:\n")
                     print(hypothesis$get_L)
-                    cat("\nP Matrix:\n")
-                    print(hypothesis$get_P)
                     cat(paste0(
                         "\nConstraints:\n",
                         wald$constraints,
@@ -1411,8 +1529,8 @@ Lgc <- R6Class(
                     pt,
                     group.label = private$group_labels,
                     sample.nobs = sample_size
-                ) %>%
-                    as_tibble() %>%
+                ) |>
+                    as_tibble() |>
                     mutate(.group = private$group_labels[group])
             }
 
@@ -1430,12 +1548,12 @@ Lgc <- R6Class(
                 }
 
                 tests$hypothesis <- rownames(tests)
-                tests <- tests %>%
-                    as_tibble() %>%
-                    rename(pvalue = "Pr(>Chisq)") %>%
+                tests <- tests |>
+                    as_tibble() |>
+                    rename(pvalue = "Pr(>Chisq)") |>
                     mutate(rep_index = rep_index)
 
-                estimates <- self$get_estimates() %>%
+                estimates <- self$get_estimates() |>
                     mutate(rep_index = rep_index)
 
                 list(tests = tests, estimates = estimates)
@@ -1451,8 +1569,8 @@ Lgc <- R6Class(
                 }, warning = function(w) {
                     results <- run(rep_index)
                     list(
-                        tests = results$tests %>% mutate(warning = w$message),
-                        estimates = results$estimates %>% mutate(warning = w$message)
+                        tests = results$tests |> mutate(warning = w$message),
+                        estimates = results$estimates |> mutate(warning = w$message)
                     )
                 }, error = function(e) {
                     list(
@@ -1462,24 +1580,24 @@ Lgc <- R6Class(
                 })
             })
 
-            tests <- lapply(results, `[[`, 1) %>%
+            tests <- lapply(results, `[[`, 1) |>
                 bind_rows()
 
-            tests_aggregated <- tests %>%
-                mutate(hypothesis = factor(hypothesis)) %>%
-                group_by(hypothesis) %>%
-                summarise(power = mean(pvalue < 0.05, na.rm = T)) %>%
+            tests_aggregated <- tests |>
+                mutate(hypothesis = factor(hypothesis)) |>
+                group_by(hypothesis) |>
+                summarise(power = mean(pvalue < 0.05, na.rm = T)) |>
                 ungroup()
 
-            estimates <- lapply(results, `[[`, 2) %>%
-                bind_rows() %>%
-                filter(free) %>%
+            estimates <- lapply(results, `[[`, 2) |>
+                bind_rows() |>
+                filter(free) |>
                 mutate(nice_label = self$get_labels(label, format = "text"))
 
-            estimates_aggregated <- estimates %>%
-                select(parameter = nice_label, label, est, est, group, se) %>%
-                mutate(pvalue = 2*(1-pnorm(abs(est/se)))) %>%
-                group_by(group, parameter) %>%
+            estimates_aggregated <- estimates |>
+                select(parameter = nice_label, label, est, est, group, se) |>
+                mutate(pvalue = 2*(1-pnorm(abs(est/se)))) |>
+                group_by(group, parameter) |>
                 summarise(
                     label = first(label),
                     mean = mean(est, na.rm = T),
@@ -1491,7 +1609,7 @@ Lgc <- R6Class(
                     median = median(est, na.rm = T),
                     pct75 = quantile(est, 0.75, na.rm = T),
                     pct97.5 = quantile(est, 0.975, na.rm = T)
-            ) %>%
+            ) |>
                 ungroup()
 
             private$data <- data_orig
@@ -1509,6 +1627,9 @@ Lgc <- R6Class(
         #' @export
         reliabilities = function() {
             cat("This is work in progress.\n")
+        },
+        plot = function(hypothesis, ...) {
+            ContrastPlot$new()$plot(self, hypothesis, ...)
         }
     )
 )
@@ -1604,3 +1725,9 @@ anova.Lgc <- function(object, ...) {
     }
 }
 
+#' @rdname semnova
+#' @method plot Lgc
+#' @export
+plot.Lgc <- function (lgc, ...) {
+    lgc$plot(...)
+}

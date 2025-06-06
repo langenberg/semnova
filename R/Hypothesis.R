@@ -5,12 +5,15 @@
 Hypothesis <- R6::R6Class(
     "Hypothesis",
     private = list(
-        L = matrix(),
+        G = matrix(),
         M = matrix(),
-        P = matrix(),
+        L = matrix(),
+        K = matrix(),
         description = "",
+        contrast_names = "",
 
         #' @description Validates the input for different functions.
+        #' @importFrom stringr str_glue
         #' @keywords internal
         #' @param lgc Object of class Lgc.
         validate = function(lgc) {
@@ -25,32 +28,45 @@ Hypothesis <- R6::R6Class(
                 stop("Number of rows of the M matrix must be equal to the number dependent variables")
             }
 
-            if (is.null(private$L)) {
+            if (is.null(private$G)) {
                 if (length(lgc$expose$group_labels) == 1L) {
+                    private$G <- matrix(1, ncol = 1, nrow = 1)
+                } else {
+                    stop("G matrix must be provided")
+                }
+            } else if (ncol(private$G) != length(lgc$expose$group_labels)) {
+                stop("Number of columns of the G matrix must be equal to the number of groups")
+            }
+
+            if (is.null(private$L)) {
+                if (length(lgc$expose$covariates) == 0L) {
                     private$L <- matrix(1, ncol = 1, nrow = 1)
                 } else {
                     stop("L matrix must be provided")
                 }
-            } else if (ncol(private$L) != length(lgc$expose$group_labels)) {
-                stop("Number of columns of the L matrix must be equal to the number of groups")
+            } else if (ncol(private$L) != (length(lgc$expose$covariates) + 1)) {
+                stop("Number of columns of the L matrix must be equal to the number of covariates + 1.")
             }
 
-            if (is.null(private$P)) {
-                if (length(lgc$expose$group_labels) == 0L) {
-                    private$P <- matrix(1, ncol = 1, nrow = 1)
-                } else {
-                    stop("P matrix must be provided")
-                }
-            } else if (ncol(private$P) != (length(lgc$expose$covariates) + 1)) {
-                stop("Number of columns of the P matrix must be equal to the number of covariates + 1.")
+
+            dim_K <- helper$calculate_K_matrix_dimensions(
+                G = private$G,
+                L = private$L,
+                M = private$M
+            )
+
+            if (is.null(private$K)) {
+                private$K <- array(0, dim = dim_K)
+            } else if (any(dim(private$K) != dim_K)) {
+                stop(str_glue("The dimension of the K matrix do must be equal to {paste0(dim_K, collapse = ' x ')}."))
             }
         }
     ),
     active = list(
 
-        #' @field get_L Return the L matrix of the hypothesis.
-        get_L = function() {
-            private$L
+        #' @field get_G Return the G matrix of the hypothesis.
+        get_G = function() {
+            private$G
         },
 
         #' @field get_M Return the M matrix of the hypothesis.
@@ -58,14 +74,23 @@ Hypothesis <- R6::R6Class(
             private$M
         },
 
-        #' @field get_P Return the P matrix of the hypothesis.
-        get_P = function() {
-            private$P
+        #' @field get_L Return the L matrix of the hypothesis.
+        get_L = function() {
+            private$L
+        },
+
+        get_K = function() {
+            private$K
         },
 
         #' @field get_description Return the description of the hypothesis.
         get_description = function() {
             private$description
+        },
+
+        #' @field get_description Return the description of the hypothesis.
+        get_contrast_names = function() {
+            private$contrast_names
         },
 
         #' @field expose Returns the private structure of the object. For debugging purposes only.
@@ -79,22 +104,62 @@ Hypothesis <- R6::R6Class(
         #' @export
         #' @param M M matrix. Can be omitted if the number of dependent
         #' variables equals 1.
-        #' @param L L matrix. Can be omitted if the number of groups equals 1.
-        #' @param P P matrix. Can be omitted if the number of covariates
+        #' @param G G matrix. Can be omitted if the number of groups equals 1.
+        #' @param L L matrix. Can be omitted if the number of covariates
         #' equals 0.
         #' @param description Character. Description of the hypothesis. Can be
         #' any character.
-        initialize = function(M = NULL, L = NULL, P = NULL, description = "") {
+        initialize = function(M = NULL, G = NULL, L = NULL, K = NULL, description = "", contrast_names = "") {
             private$M <- M
+            private$G <- G
             private$L <- L
-            private$P <- P
+            private$K <- K
             private$description <- description
+            private$contrast_names <- contrast_names
         },
+
+        #' @importFrom dplyr case_when
+        get_wald_string = function(lgc) {
+            private$validate(lgc)
+
+            B_array <- lgc$B_array_est
+            B_array_labels <- lgc$B_array_labels
+            B_vec_labels <- as.vector(B_array_labels)
+            contrast_matrix <- helper$construct_R_matrix(
+                B_array,
+                L = self$get_L,
+                G = self$get_G,
+                M = self$get_M
+            )$R
+            K <- as.vector(self$get_K)
+            constraints <- apply(contrast_matrix, 1, function(myrow) {
+                labels <- B_vec_labels[myrow != 0]
+                myrow <- myrow[myrow != 0]
+                constraint <- case_when(
+                    myrow == 1 ~ paste0("+", labels),
+                    myrow == -1 ~ paste0("-", labels),
+                    myrow > 0 ~  paste0("+", myrow, "*", labels),
+                    TRUE ~  paste0(myrow, "*", labels)
+                )
+                if (myrow[1] == 1) {
+                    constraint[1] <- labels[1]
+                } else if (myrow[1] > 0) {
+                    constraint[1] <- paste0(myrow[1], "*", labels[1])
+                }
+
+                paste0(constraint, collapse = "")
+            })
+            constraints <- sapply(1:length(constraints), function(index) {
+                paste0(constraints[index], " == ", K[index])
+            })
+            paste0(constraints, collapse = "\n")
+        },
+
 
         #' @description Returns the a string for the Wald test.
         #' @export
         #' @param lgc Object of class Lgc.
-        get_wald_string = function(lgc) {
+        get_wald_string_deprecated = function(lgc) {
 
             private$validate(lgc)
 
@@ -111,10 +176,9 @@ Hypothesis <- R6::R6Class(
                     }
                     x <- x[indices]
                     y <- y[indices]
-                    paste0("(", x, ")*(", y, ")") %>%
-                        paste0(collapse = " + ") %>%
-                        sapply(Deriv::Simplify) %>%
-                        return()
+                    paste0("(", x, ")*(", y, ")") |>
+                        paste0(collapse = " + ") |>
+                        sapply(Deriv::Simplify)
                 } else if (is.matrix(x) && is.vector(y)) {
                     y <- matrix(y, nrow = ncol(x))
                     mx(x, y)
@@ -137,54 +201,57 @@ Hypothesis <- R6::R6Class(
                     mx(par_labels[, , i], private$M)
             }
 
-            result2 <- array(NA, dim = c(nrow(private$L), dim(result1)[2], dim(par_labels)[3]))
+            result2 <- array(NA, dim = c(nrow(private$G), dim(result1)[2], dim(par_labels)[3]))
 
             for (i in 1:dim(result2)[3]) {
-                result2[,,i] <- mx(private$L, result1[,,i])
+                result2[,,i] <- mx(private$G, result1[,,i])
             }
 
-            result3 <- array(NA, dim = c(dim(result2)[1], dim(result2)[2], nrow(private$P)))
+            result3 <- array(NA, dim = c(dim(result2)[1], dim(result2)[2], nrow(private$L)))
 
             for (i in 1:dim(result3)[1]) {
                 for (j in 1:dim(result3)[2]) {
                     for (k in 1:dim(result3)[3]) {
-                        result3[i,j,k] <- mx(private$P[k,,drop=F], matrix(result2[i,j,],ncol=1))
+                        result3[i,j,k] <- mx(private$L[k,,drop=F], matrix(result2[i,j,],ncol=1))
                     }
                 }
             }
 
             apply(result3, 3, function(mat) {
                 apply(mat, 2, function(vec) {
-                    vec %>%
-                        sapply(function(x) paste0(x, " == 0")) %>%
+                    vec |>
+                        sapply(function(x) paste0(x, " == 0")) |>
                         paste0(collapse = "\n")
-                }) %>% paste0(collapse = "\n")
-            }) %>% paste0(collapse = "\n")
+                }) |> paste0(collapse = "\n")
+            }) |> paste0(collapse = "\n")
         },
 
         #' @export
         get_contrasts = function(lgc) {
             par_labels <- lgc$get_par_labels
             M <- self$get_M
+            G <- self$get_G
             L <- self$get_L
-            P <- self$get_P
 
             res <- lapply(1:ncol(M), function(col_index_M) {
                 # col_index_M <- 1
                 col_M <- M[,col_index_M]
-                sapply(1:nrow(L), function(row_index_L) {
-                    # row_index_L <- 1
-                    row_L <- L[row_index_L,]
-                    between_within <- t(sapply(row_L, function(cell_L) cell_L * col_M))
-                    lapply(1:nrow(P), function(row_index_P) {
-                        # row_index_P <- 1
-                        row_P <- P[row_index_P,]
-                        sapply(row_P, function(cell_P) cell_P * between_within, simplify = "array")
+                sapply(1:nrow(G), function(row_index_G) {
+                    # row_index_G <- 1
+                    row_G <- G[row_index_G,]
+                    between_within <- t(sapply(row_G, function(cell_G) cell_G * col_M))
+                    lapply(1:nrow(L), function(row_index_L) {
+                        # row_index_L <- 1
+                        row_L <- L[row_index_L,]
+                        sapply(row_L, function(cell_L) cell_L * between_within, simplify = "array")
                     })
                 })
             })
 
-            res <- res %>% unlist(recursive = F) %>% lapply(c) %>% (function(x) do.call(cbind, x))
+            res <- res |>
+                unlist(recursive = F) |>
+                lapply(c) |>
+                (\(x) do.call(cbind, x))()
             rownames(res) <- par_labels
             res
         },
@@ -196,15 +263,15 @@ Hypothesis <- R6::R6Class(
                 # cont <- "1*.beta_6_6_1+1*.beta_6_6_6-1.2*(1*.beta_6_6_2+1*.beta_6_6_5)"
                 while(str_detect(cont, "\\([^\\)]+\\.(beta|alpha)[^\\)]+\\)")) {
                     to_be_replaced <- str_extract(cont, "(\\+|\\-)*[0-9]+(\\.[0-9]+)*\\*\\([^\\)]+\\)")
-                    multiplyer <- str_extract(to_be_replaced, "^(\\+|\\-)*[0-9]+(\\.[0-9]+)*") %>%
+                    multiplyer <- str_extract(to_be_replaced, "^(\\+|\\-)*[0-9]+(\\.[0-9]+)*") |>
                         str_replace("^((\\+|\\-)*[0-9]+(\\.[0-9]+)*)", "(\\1)")
-                    factors <- to_be_replaced %>%
-                        str_replace("^(\\+|\\-)*[0-9]+(\\.[0-9]+)*\\*\\(", "") %>%
-                        str_replace("\\)$", "") %>%
-                        str_extract_all("(\\+|\\-)*[0-9]+(\\.[0-9]+)*\\*\\.(beta|alpha)[a-z0-9_]+") %>%
-                        unlist() %>%
-                        str_replace("^((\\+|\\-)*[0-9]+(\\.[0-9]+)*)", "(\\1)") %>%
-                        (function(x) {
+                    factors <- to_be_replaced |>
+                        str_replace("^(\\+|\\-)*[0-9]+(\\.[0-9]+)*\\*\\(", "") |>
+                        str_replace("\\)$", "") |>
+                        str_extract_all("(\\+|\\-)*[0-9]+(\\.[0-9]+)*\\*\\.(beta|alpha)[a-z0-9_]+") |>
+                        unlist() |>
+                        str_replace("^((\\+|\\-)*[0-9]+(\\.[0-9]+)*)", "(\\1)") |>
+                        (\(x) {
                             # multiplyer <- "(-1.2)"
                             # x <- "(+1)*.beta_6_6_5"
                             parameter <- str_extract(x, "\\.(beta|alpha)[0-9_]+")
@@ -216,7 +283,7 @@ Hypothesis <- R6::R6Class(
                                 "*",
                                 parameter
                             )
-                        }) %>%
+                        })() |>
                         paste0(collapse = "")
                     cont <- str_replace(cont, fixed(to_be_replaced), fixed(factors))
                 }
@@ -225,64 +292,34 @@ Hypothesis <- R6::R6Class(
 
             par_labels <- c(lgc$get_par_labels)
             wald_string <- self$get_wald_string(lgc)
-            conts <- wald_string %>%
-                str_replace_all(" ", "") %>%
-                str_split("\n") %>%
-                unlist() %>%
-                str_replace_all("==0", "") %>%
-                str_replace_all("\\+(\\.beta|\\.alpha)", "+1*\\1") %>%
-                str_replace_all("\\-(\\.beta|\\.alpha)", "-1*\\1") %>%
-                str_replace_all("\\+\\(", "+1*(") %>%
-                str_replace_all("\\-\\(", "-1*(") %>%
-                str_replace_all("\\((\\.beta|\\.alpha)", "(+1*\\1") %>%
-                str_replace_all("\\((\\.beta|\\.alpha)", "(-1*\\1") %>%
+            conts <- wald_string |>
+                str_replace_all(" ", "") |>
+                str_split("\n") |>
+                unlist() |>
+                str_replace_all("==0", "") |>
+                str_replace_all("\\+(\\.beta|\\.alpha)", "+1*\\1") |>
+                str_replace_all("\\-(\\.beta|\\.alpha)", "-1*\\1") |>
+                str_replace_all("\\+\\(", "+1*(") |>
+                str_replace_all("\\-\\(", "-1*(") |>
+                str_replace_all("\\((\\.beta|\\.alpha)", "(+1*\\1") |>
+                str_replace_all("\\((\\.beta|\\.alpha)", "(-1*\\1") |>
                 str_replace_all("^(\\.beta|\\.alpha)", "1*\\1")
 
-            conts_names <- sapply(conts, Deriv::Simplify) %>% as.character()
+            conts_names <- sapply(conts, Deriv::Simplify) |> as.character()
 
             conts <- sapply(conts, simplify_cont)
             conts <- lapply(conts, function(cont) {
                 # cont <- "1*.beta_5_2_2-1*.beta_5_2_1"
-                factors <- str_extract_all(cont, "(\\+|\\-)*[0-9]+(\\.[0-9]+)*\\*\\.(beta|alpha)([a-z0-9\\_]+)") %>% unlist()
-                multiplyers <- str_extract_all(factors, "(\\+|\\-)*[0-9]+(\\.[0-9]+)*\\*") %>%
-                    str_replace("\\*", "") %>%
-                    unlist() %>% as.numeric()
-                parameters <- str_extract_all(factors, "\\.(beta|alpha)[a-z0-9_]+") %>% unlist()
+                factors <- str_extract_all(cont, "(\\+|\\-)*[0-9]+(\\.[0-9]+)*\\*\\.(beta|alpha)([a-z0-9\\_]+)") |> unlist()
+                multiplyers <- str_extract_all(factors, "(\\+|\\-)*[0-9]+(\\.[0-9]+)*\\*") |>
+                    str_replace("\\*", "") |>
+                    unlist() |> as.numeric()
+                parameters <- str_extract_all(factors, "\\.(beta|alpha)[a-z0-9_]+") |> unlist()
                 multiplyers <- sapply(par_labels, function(x) if (!(x %in% parameters)) 0 else multiplyers[which(x == parameters)])
-            }) %>%
-                (function(x) do.call(cbind, x))
+            }) |>
+                (\(x) do.call(cbind, x))()
             colnames(conts) <- conts_names
             conts
         }
     )
 )
-#
-# M <- matrix(c(
-#     0, 0,
-#     1, -1,
-#     0, 1
-# ), nrow = 3, byrow = T)
-#
-# L <- matrix(c(
-#     1, -1, 1,
-#     1, 0, -1
-# ), ncol = 3, byrow = T)
-#
-# P <- matrix(c(
-#     1, 0
-# ), nrow = 1)
-#
-# M <- matrix(c(
-#     0,# 0,
-#     1,# -1,
-#     0#, 1
-# ), nrow = 3, byrow = T)
-#
-# L <- matrix(c(
-#     # 1, -1, 1,
-#     1, 0, -1
-# ), ncol = 3, byrow = T)
-#
-# P <- matrix(c(
-#     0, 1
-# ), nrow = 1)

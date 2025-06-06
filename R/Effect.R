@@ -57,6 +57,9 @@ SemnovaEffect <- R6::R6Class(
         vcov = function() {
             private$.mod$vcov
         },
+        Sigma = function() {
+            private$.mod$Sigma
+        },
         coefficients = function() {
             private$.mod$coefficients[,1]
         },
@@ -89,8 +92,13 @@ SemnovaEffect <- R6::R6Class(
             private$.v = mysvd$v
         },
         #' @import effects
-        effect = function(focal.predictors, ...) {
-            effects:::Effect.lm(focal.predictors, self, vcov. = self$vcov, ..., sources = self$effSources())
+        effect = function(focal.predictors, interval = c("ci", "sd"), ...) {
+            interval <- match.arg(interval)
+            if (interval == "ci") {
+                effects:::Effect.lm(focal.predictors, self, vcov. = self$vcov, ..., sources = self$effSources())
+            } else if (interval == "sd") {
+                effects:::Effect.lm(focal.predictors, self, vcov. = self$Sigma, confint = list(level = 1-(1-pnorm(1))*2), ..., sources = self$effSources())
+            }
         },
         effSources = function() {
             fit <- private$.mod

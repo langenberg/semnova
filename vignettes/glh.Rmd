@@ -1,0 +1,195 @@
+---
+title: "glh"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{glh}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  warning = F,
+  message = F,
+  comment = "#>"
+)
+```
+
+```{r setup, include = F, echo = F}
+library(semnova)
+```
+
+
+
+# 📘 General Linear Hypothesis for Multigroup Models
+
+This derivation provides the foundation for constructing linear hypothesis tests across multiple groups in a multivariate setting using matrix vectorization. It is designed for use in models where each group has its own set of regression coefficients.
+
+---
+
+## 🔢 Model Setup
+
+We assume:
+
+- \( n_{	ext{groups}} \): number of groups  
+- \( q \): number of repeated measures (outcomes)  
+- \( p + 1 \): number of predictors including intercept  
+- \( \mathbf{B}_g \in \mathbb{R}^{(p + 1) \times q} \): coefficient matrix for group \(g\)
+
+These matrices are stacked in a 3D array:
+
+\[
+\mathbf{B}_{\text{array}}[(p + 1), q, n_{\text{groups}}]
+\]
+
+---
+
+## 🎯 Hypothesis of Interest
+
+We aim to test:
+
+\[
+\mathbf{H}_0: \mathbf{G} \cdot (\mathbf{L} \cdot \mathbf{B}_g \cdot \mathbf{M}) = \mathbf{K}
+\]
+
+Where:
+
+| Symbol         | Dimensions                 | Description |
+|----------------|----------------------------|-------------|
+| \( \mathbf{L} \) | \( h \times (p + 1) \)       | Predictor contrast matrix |
+| \( \mathbf{M} \) | \( q \times r \)             | Within-subject contrast matrix |
+| \( \mathbf{G} \) | \( d \times n_{\text{groups}} \) | Group contrast matrix |
+| \( \mathbf{K} \) | \( d \times h \times r \)    | Target matrix (often 0) |
+
+---
+
+## 🧠 Vectorization Strategy
+
+### Step 1: Single Group Transformation
+
+For each group \(g\):
+
+\[
+\text{vec}(\mathbf{L} \cdot \mathbf{B}_g \cdot \mathbf{M}) = (\mathbf{M}^\top \otimes \mathbf{L}) \cdot \text{vec}(\mathbf{B}_g)
+\]
+
+This maps:
+
+\[
+\text{vec}(\mathbf{B}_g) \in \mathbb{R}^{(p + 1) \cdot q}
+\quad \rightarrow \quad
+\text{vec}(\mathbf{L} \cdot \mathbf{B}_g \cdot \mathbf{M}) \in \mathbb{R}^{h \cdot r}
+\]
+
+---
+
+### Step 2: All Groups Transformation
+
+Stack all transformed groups:
+
+\[
+\text{vec}
+\begin{bmatrix}
+\mathbf{L} \mathbf{B}_1 \mathbf{M} \\
+\mathbf{L} \mathbf{B}_2 \mathbf{M} \\
+\vdots \\
+\mathbf{L} \mathbf{B}_{n_{\text{groups}}} \mathbf{M}
+\end{bmatrix}
+=
+\left( \mathbf{I}_{n_{\text{groups}}} \otimes (\mathbf{M}^\top \otimes \mathbf{L}) \right) \cdot \text{vec}(\mathbf{B})
+\]
+
+Where:
+
+\[
+\mathbf{B} =  
+\begin{bmatrix}
+\mathbf{B}_1 \\
+\vdots \\
+\mathbf{B}_{n_{\text{groups}}}
+\end{bmatrix}
+\quad \Rightarrow \quad
+\text{vec}(\mathbf{B}) \in \mathbb{R}^{n_{\text{groups}} \cdot (p + 1) \cdot q}
+\]
+
+---
+
+### Step 3: Apply Group-Level Contrast
+
+The group contrast \( \mathbf{G} \in \mathbb{R}^{d \times n_{\text{groups}}} \) is applied as:
+
+\[
+\mathbf{R} = (\mathbf{G} \otimes \mathbf{I}_{h \cdot r}) \cdot (\mathbf{I}_{n_{\text{groups}}} \otimes (\mathbf{M}^\top \otimes \mathbf{L}))
+\]
+
+Thus, the full hypothesis becomes:
+
+\[
+\boxed{
+\mathbf{H}_0: \mathbf{R} \cdot \text{vec}(\mathbf{B}) = \mathbf{k}
+}
+\]
+
+Where \( \mathbf{k} = \text{vec}(\mathbf{K}) \), often a zero vector.
+
+---
+
+## ✅ Dimensions Summary
+
+| Matrix               | Dimensions |
+|----------------------|-------------|
+| \( \mathbf{B}_g \)   | \( (p + 1) \times q \) |
+| \( \mathbf{L} \)     | \( h \times (p + 1) \) |
+| \( \mathbf{M} \)     | \( q \times r \) |
+| \( \mathbf{G} \)     | \( d \times n_{\text{groups}} \) |
+| \( \text{vec}(\mathbf{B}) \) | \( n_{\text{groups}} \cdot (p + 1) \cdot q \times 1 \) |
+| \( \mathbf{R} \)     | \( d \cdot h \cdot r \times n_{\text{groups}} \cdot (p + 1) \cdot q \) |
+| \( \mathbf{k} \)     | \( d \cdot h \cdot r \times 1 \) |
+
+---
+
+## 🛠 Code Implementation
+
+```r
+construct_contrast_matrix <- function(B_array, G, L, M) {
+  p1 <- dim(B_array)[1]           # predictors (incl. intercept)
+  q  <- dim(B_array)[2]           # repeated measures
+  n_groups <- dim(B_array)[3]     # number of groups
+
+  h <- nrow(L)                    # predictor contrasts
+  r <- ncol(M)                    # within-subject contrasts
+  d <- nrow(G)                    # group contrasts
+
+  vec_B <- as.vector(B_array)     # vectorized coefficient matrix
+
+  Rg <- kronecker(t(M), L)        # (h * r) x (p1 * q)
+  R_within <- kronecker(diag(n_groups), Rg)  # (n_groups * h * r) x (n_groups * p1 * q)
+
+  R <- kronecker(G, diag(h * r)) %*% R_within  # (d * h * r) x (n_groups * p1 * q)
+
+  return(list(R = R, vec_B = vec_B))
+}
+```
+
+---
+
+## 🧪 Final Use
+
+To test:
+
+\[
+\mathbf{H}_0: \mathbf{R} \cdot \text{vec}(\mathbf{B}) = \mathbf{k}
+\]
+
+Compute the residual:
+
+\[
+\text{residual} = \mathbf{R} \cdot \text{vec}(\mathbf{B}) - \mathbf{k}
+\]
+
+This is used for:
+
+- **Wald tests**
+- **F-tests**
+- **Multivariate test statistics** (Wilks' Lambda, etc.)

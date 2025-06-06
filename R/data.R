@@ -50,13 +50,13 @@
 #' if (FALSE) {
 #'     data(reading_raw)
 #'
-#'     reading_latent <- reading_raw %>%
-#'         group_by(indicator) %>%
-#'         mutate(dv = as.vector(scale(log(dv)))) %>%
+#'     reading_latent <- reading_raw |>
+#'         group_by(indicator) |>
+#'         mutate(dv = as.vector(scale(log(dv)))) |>
 #'         ungroup()
 #'
-#'     reading_manifest <- reading_latent %>%
-#'         pivot_wider(names_from = "indicator", values_from = "dv") %>%
+#'     reading_manifest <- reading_latent |>
+#'         pivot_wider(names_from = "indicator", values_from = "dv") |>
 #'         select(id, sentence, grade, gaze_dur, tv_dur, ini_fix_dur, 4:20)
 #' }
 #'

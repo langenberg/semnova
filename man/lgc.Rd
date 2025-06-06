@@ -69,6 +69,7 @@ Lgc Class
 \item \href{#method-Lgc-set_data}{\code{Lgc$set_data()}}
 \item \href{#method-Lgc-power_analysis}{\code{Lgc$power_analysis()}}
 \item \href{#method-Lgc-reliabilities}{\code{Lgc$reliabilities()}}
+\item \href{#method-Lgc-plot}{\code{Lgc$plot()}}
 \item \href{#method-Lgc-clone}{\code{Lgc$clone()}}
 }
 }
@@ -76,6 +77,9 @@ Lgc Class
 \if{html}{\out{<a id="method-Lgc-new"></a>}}
 \if{latex}{\out{\hypertarget{method-Lgc-new}{}}}
 \subsection{Method \code{new()}}{
+Prints coefficients for the Lgc object.
+
+
 Prints coefficients for the Lgc object.
 
 
@@ -576,6 +580,15 @@ same length as data_syntax.}
 \subsection{Method \code{reliabilities()}}{
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{Lgc$reliabilities()}\if{html}{\out{</div>}}
+}
+
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Lgc-plot"></a>}}
+\if{latex}{\out{\hypertarget{method-Lgc-plot}{}}}
+\subsection{Method \code{plot()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Lgc$plot(hypothesis, ...)}\if{html}{\out{</div>}}
 }
 
 }

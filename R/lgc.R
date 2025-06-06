@@ -1043,7 +1043,7 @@ Lgc <- R6Class(
             }
 
             private$sem_obj <- lavaan::sem(
-                model = paste0(self$get_lav_syntax(), "\n", private$append),
+                model = self$get_lav_syntax(),
                 data = private$data,
                 group = private$group,
                 group.label = private$group_labels,
@@ -1054,7 +1054,7 @@ Lgc <- R6Class(
         #' @description Retrieves the lavaan syntax.
         #' @param ... Additional arguments.
         get_lav_syntax = function(...) {
-            private$par_table$get_lav_syntax(...)
+            paste0(private$par_table$get_lav_syntax(...), "\n", private$append)
         },
 
         #' @description Returns the point estimates of the model.

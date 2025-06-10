@@ -1476,7 +1476,8 @@ ParTable <- R6::R6Class(
                                 paste0("c(", loadings, ")*", desc$rhs)
                             }
                         }) |> paste0(collapse = rhs_sep)
-                    paste0(lhs, " ", op, "\n    ", rhss)
+                    # paste0(lhs, " ", op, "\n    ", rhss) # broken by new lavaan version
+                    paste0(lhs, " ", op, rhss)
                 }) |> paste0(collapse = "\n")
         },
 

@@ -1,0 +1,23 @@
+# editor / session state
+.*
+!.gitignore
+!.Rbuildignore
+!.github
+*.Rproj
+.Rproj.user
+*.sh
+R/todo*
+
+# build and check artefacts
+*.tar.gz
+*.Rcheck/
+Rplots.pdf
+inst/doc
+doc/
+Meta/
+
+# reference copies and working notes, not part of the package
+archive/*
+resources/
+CLAUDE.md
+tutorials/

@@ -1,195 +1,194 @@
 ---
-title: "glh"
+title: "The general linear hypothesis behind every semnova test"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{glh}
+  %\VignetteIndexEntry{The general linear hypothesis behind every semnova test}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
-  collapse = TRUE,
-  warning = F,
-  message = F,
-  comment = "#>"
+    collapse = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    comment = "#>"
 )
 ```
 
-```{r setup, include = F, echo = F}
+```{r setup}
 library(semnova)
 ```
 
+Every test the package reports is one general linear hypothesis on the
+contrast layer, evaluated by one piece of code. That covers each row of an
+ANOVA table, each custom hypothesis and each contrast plot. This vignette derives that
+construction and shows where each of its parts comes from. It is background:
+nothing here is needed to use the package, and `vignette("semnova")` is the
+place to start.
 
+# The model
 
-# 📘 General Linear Hypothesis for Multigroup Models
+A multigroup model has one coefficient matrix per group. Write
 
-This derivation provides the foundation for constructing linear hypothesis tests across multiple groups in a multivariate setting using matrix vectorization. It is designed for use in models where each group has its own set of regression coefficients.
+- $n_{\text{groups}}$ for the number of groups,
+- $q$ for the number of repeated measures,
+- $p + 1$ for the number of predictors, the intercept included,
+- $\mathbf{B}_g \in \mathbb{R}^{(p + 1) \times q}$ for the coefficients of
+  group $g$.
 
----
+The $\mathbf{B}_g$ are stacked into a three-dimensional array of dimension
+$(p + 1) \times q \times n_{\text{groups}}$. In semnova that array is the
+contrast (pi) layer's coefficients, returned by `regression_coefficients()`.
 
-## 🔢 Model Setup
+# The hypothesis
 
-We assume:
+The hypotheses of interest have the form
 
-- \( n_{	ext{groups}} \): number of groups  
-- \( q \): number of repeated measures (outcomes)  
-- \( p + 1 \): number of predictors including intercept  
-- \( \mathbf{B}_g \in \mathbb{R}^{(p + 1) \times q} \): coefficient matrix for group \(g\)
+$$
+\mathbf{H}_0: \mathbf{G} \cdot (\mathbf{L} \cdot \mathbf{B}_g \cdot \mathbf{M})
+= \mathbf{K}
+$$
 
-These matrices are stacked in a 3D array:
+where each matrix selects one aspect of the design:
 
-\[
-\mathbf{B}_{\text{array}}[(p + 1), q, n_{\text{groups}}]
-\]
+| Symbol | Dimensions | Selects |
+|--------|------------|---------|
+| $\mathbf{L}$ | $h \times (p + 1)$ | predictors: an intercept, or a covariate's effect |
+| $\mathbf{M}$ | $q \times r$ | contrast variables: the columns belonging to a within-subject term |
+| $\mathbf{G}$ | $d \times n_{\text{groups}}$ | groups: the between-subject contrasts |
+| $\mathbf{K}$ | $d \times h \times r$ | the values tested against, almost always zero |
 
----
+A main effect, an interaction and a covariate effect differ only in which of
+these is non-trivial, which is why one implementation covers them all.
 
-## 🎯 Hypothesis of Interest
+# Vectorisation
 
-We aim to test:
+The hypothesis is stated in matrices but tested as a linear restriction on a
+parameter vector, so it has to be rewritten in terms of
+$\text{vec}(\mathbf{B})$.
 
-\[
-\mathbf{H}_0: \mathbf{G} \cdot (\mathbf{L} \cdot \mathbf{B}_g \cdot \mathbf{M}) = \mathbf{K}
-\]
+## One group
 
-Where:
+For a single group, the standard identity for the vectorisation of a matrix
+product gives
 
-| Symbol         | Dimensions                 | Description |
-|----------------|----------------------------|-------------|
-| \( \mathbf{L} \) | \( h \times (p + 1) \)       | Predictor contrast matrix |
-| \( \mathbf{M} \) | \( q \times r \)             | Within-subject contrast matrix |
-| \( \mathbf{G} \) | \( d \times n_{\text{groups}} \) | Group contrast matrix |
-| \( \mathbf{K} \) | \( d \times h \times r \)    | Target matrix (often 0) |
+$$
+\text{vec}(\mathbf{L} \cdot \mathbf{B}_g \cdot \mathbf{M})
+= (\mathbf{M}^\top \otimes \mathbf{L}) \cdot \text{vec}(\mathbf{B}_g),
+$$
 
----
+which maps a vector of length $(p + 1) \cdot q$ to one of length $h \cdot r$.
 
-## 🧠 Vectorization Strategy
+## All groups
 
-### Step 1: Single Group Transformation
+Stacking the groups, the same transformation is applied to each block of
+$\text{vec}(\mathbf{B})$:
 
-For each group \(g\):
-
-\[
-\text{vec}(\mathbf{L} \cdot \mathbf{B}_g \cdot \mathbf{M}) = (\mathbf{M}^\top \otimes \mathbf{L}) \cdot \text{vec}(\mathbf{B}_g)
-\]
-
-This maps:
-
-\[
-\text{vec}(\mathbf{B}_g) \in \mathbb{R}^{(p + 1) \cdot q}
-\quad \rightarrow \quad
-\text{vec}(\mathbf{L} \cdot \mathbf{B}_g \cdot \mathbf{M}) \in \mathbb{R}^{h \cdot r}
-\]
-
----
-
-### Step 2: All Groups Transformation
-
-Stack all transformed groups:
-
-\[
+$$
 \text{vec}
 \begin{bmatrix}
 \mathbf{L} \mathbf{B}_1 \mathbf{M} \\
-\mathbf{L} \mathbf{B}_2 \mathbf{M} \\
 \vdots \\
 \mathbf{L} \mathbf{B}_{n_{\text{groups}}} \mathbf{M}
 \end{bmatrix}
 =
-\left( \mathbf{I}_{n_{\text{groups}}} \otimes (\mathbf{M}^\top \otimes \mathbf{L}) \right) \cdot \text{vec}(\mathbf{B})
-\]
-
-Where:
-
-\[
-\mathbf{B} =  
+\left( \mathbf{I}_{n_{\text{groups}}} \otimes (\mathbf{M}^\top \otimes \mathbf{L}) \right)
+\cdot \text{vec}(\mathbf{B}),
+\qquad
+\mathbf{B} =
 \begin{bmatrix}
 \mathbf{B}_1 \\
 \vdots \\
 \mathbf{B}_{n_{\text{groups}}}
-\end{bmatrix}
-\quad \Rightarrow \quad
-\text{vec}(\mathbf{B}) \in \mathbb{R}^{n_{\text{groups}} \cdot (p + 1) \cdot q}
-\]
+\end{bmatrix}.
+$$
 
----
+## The group contrast
 
-### Step 3: Apply Group-Level Contrast
+Applying $\mathbf{G}$ across groups completes the construction:
 
-The group contrast \( \mathbf{G} \in \mathbb{R}^{d \times n_{\text{groups}}} \) is applied as:
+$$
+\mathbf{R} = (\mathbf{G} \otimes \mathbf{I}_{h \cdot r})
+\cdot (\mathbf{I}_{n_{\text{groups}}} \otimes (\mathbf{M}^\top \otimes \mathbf{L}))
+$$
 
-\[
-\mathbf{R} = (\mathbf{G} \otimes \mathbf{I}_{h \cdot r}) \cdot (\mathbf{I}_{n_{\text{groups}}} \otimes (\mathbf{M}^\top \otimes \mathbf{L}))
-\]
+so that the hypothesis becomes a single linear restriction,
 
-Thus, the full hypothesis becomes:
+$$
+\mathbf{H}_0: \mathbf{R} \cdot \text{vec}(\mathbf{B}) = \mathbf{k},
+\qquad \mathbf{k} = \text{vec}(\mathbf{K}),
+$$
 
-\[
-\boxed{
-\mathbf{H}_0: \mathbf{R} \cdot \text{vec}(\mathbf{B}) = \mathbf{k}
-}
-\]
+with one row of $\mathbf{R}$ per contrast being tested and one column per
+coefficient.
 
-Where \( \mathbf{k} = \text{vec}(\mathbf{K}) \), often a zero vector.
+# Dimensions
 
----
+| Quantity | Dimensions |
+|----------|------------|
+| $\mathbf{B}_g$ | $(p + 1) \times q$ |
+| $\mathbf{L}$ | $h \times (p + 1)$ |
+| $\mathbf{M}$ | $q \times r$ |
+| $\mathbf{G}$ | $d \times n_{\text{groups}}$ |
+| $\text{vec}(\mathbf{B})$ | $n_{\text{groups}} \cdot (p + 1) \cdot q$ |
+| $\mathbf{R}$ | $(d \cdot h \cdot r) \times (n_{\text{groups}} \cdot (p + 1) \cdot q)$ |
+| $\mathbf{k}$ | $d \cdot h \cdot r$ |
 
-## ✅ Dimensions Summary
+# Implementation
 
-| Matrix               | Dimensions |
-|----------------------|-------------|
-| \( \mathbf{B}_g \)   | \( (p + 1) \times q \) |
-| \( \mathbf{L} \)     | \( h \times (p + 1) \) |
-| \( \mathbf{M} \)     | \( q \times r \) |
-| \( \mathbf{G} \)     | \( d \times n_{\text{groups}} \) |
-| \( \text{vec}(\mathbf{B}) \) | \( n_{\text{groups}} \cdot (p + 1) \cdot q \times 1 \) |
-| \( \mathbf{R} \)     | \( d \cdot h \cdot r \times n_{\text{groups}} \cdot (p + 1) \cdot q \) |
-| \( \mathbf{k} \)     | \( d \cdot h \cdot r \times 1 \) |
+`contrast_matrix()` builds $\mathbf{R}$ in the three steps derived above:
 
----
-
-## 🛠 Code Implementation
-
-```r
-construct_contrast_matrix <- function(B_array, G, L, M) {
-  p1 <- dim(B_array)[1]           # predictors (incl. intercept)
-  q  <- dim(B_array)[2]           # repeated measures
-  n_groups <- dim(B_array)[3]     # number of groups
-
-  h <- nrow(L)                    # predictor contrasts
-  r <- ncol(M)                    # within-subject contrasts
-  d <- nrow(G)                    # group contrasts
-
-  vec_B <- as.vector(B_array)     # vectorized coefficient matrix
-
-  Rg <- kronecker(t(M), L)        # (h * r) x (p1 * q)
-  R_within <- kronecker(diag(n_groups), Rg)  # (n_groups * h * r) x (n_groups * p1 * q)
-
-  R <- kronecker(G, diag(h * r)) %*% R_within  # (d * h * r) x (n_groups * p1 * q)
-
-  return(list(R = R, vec_B = vec_B))
-}
+```{r contrast-matrix-source}
+contrast_matrix
 ```
 
----
+Supplying `B_array` returns $\text{vec}(\mathbf{B})$ alongside it, so the two
+halves of the restriction are produced by one call and cannot disagree about
+their ordering:
 
-## 🧪 Final Use
+```{r contrast-matrix-run}
+set.seed(1)
 
-To test:
+# 3 predictors, 4 repeated measures, 2 groups
+B_array <- array(rnorm(3 * 4 * 2), dim = c(3, 4, 2))
 
-\[
-\mathbf{H}_0: \mathbf{R} \cdot \text{vec}(\mathbf{B}) = \mathbf{k}
-\]
+L <- matrix(c(0, 1, 0), nrow = 1)          # one predictor contrast
+M <- cbind(c(1, -1, 0, 0), c(0, 0, 1, -1)) # two within-subject contrasts
+G <- matrix(c(1, -1), nrow = 1)            # one group contrast
 
-Compute the residual:
+out <- contrast_matrix(G = G, L = L, M = M, B_array = B_array)
+out$dim
+```
 
-\[
-\text{residual} = \mathbf{R} \cdot \text{vec}(\mathbf{B}) - \mathbf{k}
-\]
+These are the dimensions tabulated above: $d \cdot h \cdot r = 2$ rows and
+$n_{\text{groups}} \cdot (p + 1) \cdot q = 24$ columns.
 
-This is used for:
+The construction can be checked against its own definition. Computing
+$\mathbf{G} \cdot (\mathbf{L} \mathbf{B}_g \mathbf{M})$ directly, group by
+group, must reproduce $\mathbf{R} \cdot \text{vec}(\mathbf{B})$:
 
-- **Wald tests**
-- **F-tests**
-- **Multivariate test statistics** (Wilks' Lambda, etc.)
+```{r contrast-matrix-verify}
+direct <- Reduce(`+`, lapply(1:2, function(g) {
+    G[1, g] * as.vector(L %*% B_array[, , g] %*% M)
+}))
+
+all.equal(as.vector(out$R %*% out$vec_B), direct)
+```
+
+This vignette is rendered when the package is built, so that equality is
+verified on every build rather than asserted here once.
+
+# Where each part comes from
+
+| Part | Supplied by |
+|------|-------------|
+| $\mathbf{G}$, $\mathbf{L}$, $\mathbf{M}$, $\mathbf{K}$ | `hypothesis()`, or `generate_anova_hypotheses()` for one hypothesis per model term |
+| $\mathbf{B}$ | `regression_coefficients()`, whose `B_array` holds the contrast layer's coefficients |
+| $\mathbf{R}$ | `contrast_matrix()` |
+| the test | `test_hypothesis()` and `contrast_estimates()`, which form the Wald statistic from $\mathbf{R}$, $\text{vec}(\mathbf{B})$ and the coefficients' covariance matrix |
+
+The restriction $\mathbf{R} \cdot \text{vec}(\mathbf{B}) - \mathbf{k}$ is what
+those functions test, and the same quantity underlies the Wald test reported in
+the ANOVA table, the per-contrast estimates in `summary()`, and the intervals
+drawn by `plot()`.

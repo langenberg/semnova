@@ -1,0 +1,750 @@
+---
+title: "Analysing within- and between-subject effects with semnova"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Analysing within- and between-subject effects with semnova}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+    collapse = TRUE,
+    comment = "#>",
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 7,
+    fig.height = 4.5
+)
+```
+
+```{r library}
+library(semnova)
+```
+
+This vignette walks through everything the package currently does, using the
+data that ships with it. Every feature that is implemented appears here; if a
+function is exported and meant for users, you will find it below.
+
+# What semnova is for
+
+`semnova` fits repeated-measures ANOVA designs as structural equation models.
+The advantage over a classical RM-ANOVA is that the dependent variable, and any
+covariates, can be **latent**. They are measured by several indicators, with
+measurement error taken out, rather than being manifest composites.
+
+Under the hood, each design cell becomes a latent variable (`eta`), those are
+transformed by a contrast matrix into contrast variables (`pi`), and every
+effect you test is a general linear hypothesis on the `pi` layer. The maths is
+in `vignette("glh", package = "semnova")`; you do not need it to use the
+package.
+
+# The example data
+
+Two versions of a reading study ship with the package: `reading_manifest` (one
+row per person and design cell) and `reading_latent` (the long form, with three
+indicators per cell). The design is 3 (grade) x 2 (sentence type), within
+subjects, with `sex` available as a between-subjects factor and `iq` as a
+covariate.
+
+```{r data}
+str(reading_manifest[c("id", "grade", "sentence", "sex", "re_fix_time", "iq")])
+table(reading_latent$indicator)
+```
+
+# A manifest within-subjects design
+
+The simplest case: a single observed dependent variable, two crossed
+within-subject factors. Give `semnova()` the long-format data, the case
+identifier, the dependent variable, and the within factors.
+
+`contrasts_arg` controls how each factor is coded. Anything R's own contrast
+functions provide will do. Here we use sum-to-zero contrasts for both factors.
+
+```{r manifest}
+fit <- semnova(
+    data = reading_manifest,
+    id = "id",
+    dv = "re_fix_time",
+    withins = c("grade", "sentence"),
+    contrasts_arg = list(grade = "contr.sum", sentence = "contr.sum")
+)
+```
+
+Printing the fit gives you a description of the model and the ANOVA table: one
+row per model term, tested as a general linear hypothesis.
+
+```{r manifest-print}
+fit
+```
+
+`anova()` on a single fit returns that table on its own, so you can work with
+it programmatically. Given several fits it compares them as nested models
+instead, which the invariance and covariance-structure sections below use.
+
+```{r manifest-anova}
+anova(fit)
+```
+
+`anova_table()` is the same thing under a name that says what it returns, for
+when you would rather not go through the generic.
+
+```{r manifest-anova-table}
+identical(anova_table(fit), anova(fit))
+```
+
+`summary()` adds the estimates underneath each omnibus test.
+
+```{r manifest-summary}
+summary(fit)
+```
+
+# Adding a between-subjects factor
+
+Naming a `betweens` factor fits a multigroup model, one group per level. It
+extends the ANOVA table with the between-subject term and every interaction
+involving it.
+
+```{r between}
+fit_between <- semnova(
+    data = reading_manifest,
+    id = "id",
+    dv = "re_fix_time",
+    withins = c("grade", "sentence"),
+    betweens = "sex",
+    contrasts_arg = list(
+        grade = "contr.sum",
+        sentence = "contr.sum",
+        sex = "contr.treatment"
+    )
+)
+
+anova_table(fit_between)
+```
+
+# A latent dependent variable
+
+To make the dependent variable latent, point `indicator` at the column that says
+which indicator each row holds. Every design cell is then measured by all of the
+indicators, and the measurement model is estimated along with everything else.
+
+We use two of the three available indicators here.
+
+```{r latent}
+reading_two <- reading_latent[reading_latent$indicator != "re_fix_time", ]
+
+fit_latent <- semnova(
+    data = reading_two,
+    id = "id",
+    dv = "dv",
+    indicator = "indicator",
+    withins = c("grade", "sentence"),
+    contrasts_arg = list(grade = "contr.sum", sentence = "contr.sum")
+)
+
+anova_table(fit_latent)
+```
+
+Because a latent model is no longer saturated, global fit measures become
+informative:
+
+```{r latent-fit}
+fit_measures(fit_latent)
+```
+
+# Covariates
+
+`covariates` adds covariates. Each one enters as a predictor of every contrast
+variable, so you get a main effect for the covariate plus its interactions with
+the within-subject terms. Those interactions say whether the experimental
+effects differ depending on the covariate.
+
+```{r covariate}
+fit_cov <- semnova(
+    data = reading_two,
+    id = "id",
+    dv = "dv",
+    indicator = "indicator",
+    withins = c("grade", "sentence"),
+    covariates = "iq",
+    contrasts_arg = list(grade = "contr.sum", sentence = "contr.sum")
+)
+
+anova_table(fit_cov)
+```
+
+Covariates may be categorical. A factor is coded into contrast columns for
+you, using `contrasts_arg` or `contr.treatment` by default. Its columns stay
+**one term**, so a three-level covariate is a single effect with two degrees of
+freedom rather than two separate effects:
+
+```{r covariate-categorical}
+reading_grouped <- reading_manifest
+reading_grouped$iq_group <- cut(reading_grouped$iq, 3, labels = c("low", "mid", "high"))
+
+fit_catcov <- semnova(
+    data = reading_grouped,
+    id = "id",
+    dv = "re_fix_time",
+    withins = c("grade", "sentence"),
+    covariates = "iq_group",
+    contrasts_arg = list(grade = "contr.sum", sentence = "contr.sum")
+)
+
+anova_table(fit_catcov)
+```
+
+`expand_categorical_covariates()` is the function that does the coding, should
+you want the columns themselves:
+
+```{r covariate-expand}
+expand_categorical_covariates(reading_grouped, "iq_group", list())$terms
+```
+
+# Measurement invariance
+
+With a latent dependent variable you can ask whether the measurement model holds
+equally across measurement occasions. `invariance_within` takes the usual four
+levels, each nested in the previous one.
+
+```{r invariance}
+invariance_fit <- function(level) {
+    semnova(
+        data = reading_two,
+        id = "id",
+        dv = "dv",
+        indicator = "indicator",
+        withins = c("grade", "sentence"),
+        invariance_within = level,
+        contrasts_arg = list(grade = "contr.sum", sentence = "contr.sum")
+    )
+}
+
+configural <- invariance_fit("configural")
+weak <- invariance_fit("weak")
+strong <- invariance_fit("strong")
+```
+
+Passing several fits to `anova()` compares them as nested models, which is how
+you test whether a stricter level of invariance is tenable. Alongside the
+chi-square difference test it reports each model's own `RMSEA` and `CFI` and
+the change in each from the previous model. A difference test rejects almost
+any constraint in a large enough sample, so invariance is conventionally judged
+on those changes as well. `indices` takes any measure `lavaan::fitMeasures()`
+knows, in the order you want the columns: `indices = c("rmsea", "cfi", "srmr")`,
+or `NULL` for none. (lavaan's `RMSEA_D` column is a third thing again: the
+RMSEA of the difference test itself.)
+
+```{r invariance-compare}
+anova(configural, weak, strong)
+```
+
+`invariance_between` does the same across groups in a multigroup model.
+
+Identification is handled for you, including a case that is easy to get wrong:
+a construct measured at a **single** occasion by exactly **two** indicators
+needs both loadings fixed to 1 and both intercepts fixed to 0. Partial fixing
+(the usual referent-indicator or effects-coding scheme) leaves it
+under-identified. `identification_scheme()` is the function that decides:
+
+```{r identification}
+identification_scheme(n_occasions = 1, n_indicators = 2, lv_scaling = "effect")
+identification_scheme(n_occasions = 6, n_indicators = 2, lv_scaling = "effect")
+```
+
+# Residual structure
+
+With a latent dependent variable measured repeatedly, the same indicator's
+residuals usually correlate over occasions, and their variances may be worth
+constraining. Both are described with `resid_set()`, which says *which*
+residual terms a constraint covers: the indicators, and the conditions.
+
+`resid_cov` adds residual covariances among a set's members. Name an indicator
+and it covers every occasion:
+
+```{r resid-cov}
+fit_rescov <- semnova(
+    data = reading_two,
+    id = "id",
+    dv = "dv",
+    indicator = "indicator",
+    withins = c("grade", "sentence"),
+    resid_cov = resid_set("fix_count"),
+    contrasts_arg = list(grade = "contr.sum", sentence = "contr.sum")
+)
+
+anova(fit_latent, fit_rescov)
+```
+
+Covariances in a set are free by default; `equal = TRUE` makes them one
+parameter. Conditions restrict the set to part of the design. Here it covers
+residual covariances among landolt sentences only, constrained equal:
+
+```{r resid-cov-conditions}
+fit_landolt <- semnova(
+    data = reading_two,
+    id = "id",
+    dv = "dv",
+    indicator = "indicator",
+    withins = c("grade", "sentence"),
+    resid_cov = resid_set("fix_count", sentence = "landolt", equal = TRUE),
+    contrasts_arg = list(grade = "contr.sum", sentence = "contr.sum")
+)
+
+fit_measures(fit_landolt)
+```
+
+`resid_var` uses the same sets to constrain residual *variances* to be equal.
+Omit the indicator and the set covers all of them; `TRUE` is shorthand for one
+set covering everything:
+
+```{r resid-var}
+equal_over_time <- semnova(
+    data = reading_two,
+    id = "id",
+    dv = "dv",
+    indicator = "indicator",
+    withins = c("grade", "sentence"),
+    # each indicator's residual variance held constant across occasions
+    resid_var = list(resid_set("fix_count"), resid_set("ini_land_pos")),
+    contrasts_arg = list(grade = "contr.sum", sentence = "contr.sum")
+)
+
+anova(fit_latent, equal_over_time)
+```
+
+A set is printed the way you wrote it, and is checked as you write it rather
+than deep inside the fit:
+
+```{r resid-set-print}
+resid_set("fix_count", sentence = "landolt", equal = TRUE)
+try(resid_set("fix_count", grade = "grade7"))
+```
+
+Two cases where a residual constraint cannot apply, both warned about rather
+than silently dropped: a **manifest** dependent variable has no residuals of its
+own (the observed variable is the construct), and a set covering fewer than two
+residual terms, which happens with a single occasion, has nothing to
+constrain.
+
+`build_resid_cov_syntax()` and `build_resid_var_syntax()` write this part of
+the model, if you want the syntax itself.
+
+```{r resid-syntax}
+cat(build_resid_var_syntax(list(c("Y1", "Y2", "Y3"))))
+```
+
+# The covariance structure of the contrast variables
+
+By default the contrast variables have an unstructured covariance matrix: every
+variance and covariance is freely estimated, and the model is saturated. Two
+options impose the classical repeated-measures structures instead.
+
+`sphericity` constrains a model term's contrast variables to equal variances and
+zero covariances among themselves. That is the assumption a classical RM-ANOVA
+makes, stated explicitly here and therefore testable. You name the terms, in the same
+vocabulary as the ANOVA table: `TRUE` for every term wide enough to constrain,
+or particular terms such as `"grade"` and `"grade:sentence"` (an interaction may
+also be given as its factors, `c("grade", "sentence")`).
+
+```{r sphericity}
+fit_spher <- semnova(
+    data = reading_manifest,
+    id = "id",
+    dv = "re_fix_time",
+    withins = c("grade", "sentence"),
+    sphericity = TRUE,
+    contrasts_arg = list(grade = "contr.sum", sentence = "contr.sum")
+)
+
+fit_measures(fit_spher)
+```
+
+Because the sphericity model is nested in the unstructured one, `anova()` tests
+the assumption directly:
+
+```{r sphericity-test}
+anova(fit, fit_spher)
+```
+
+`compound_symmetry` puts the structure on the occasions instead: one variance
+for every occasion and one covariance for every pair, with the contrast
+variables' own (co)variances fixed to zero.
+
+```{r compound-symmetry}
+fit_cs <- semnova(
+    data = reading_manifest,
+    id = "id",
+    dv = "re_fix_time",
+    withins = c("grade", "sentence"),
+    compound_symmetry = TRUE,
+    contrasts_arg = list(grade = "contr.sum", sentence = "contr.sum")
+)
+
+anova(fit, fit_cs)
+```
+
+In a multigroup model, `variance_homogeneity = TRUE` constrains those
+(co)variances to be equal across groups, and `group_weights = "stochastic"`
+treats group membership as random rather than fixed by design. Each group's
+frequency is then estimated and reported as a `relfreq` definition.
+
+```{r group-weights}
+fit_weighted <- semnova(
+    data = reading_manifest,
+    id = "id",
+    dv = "re_fix_time",
+    withins = c("grade", "sentence"),
+    betweens = "sex",
+    group_weights = "stochastic",
+    variance_homogeneity = TRUE,
+    contrasts_arg = list(
+        grade = "contr.sum", sentence = "contr.sum", sex = "contr.treatment"
+    )
+)
+
+estimates <- lavaan::parTable(fit_weighted$sem_obj)
+estimates[estimates$op == ":=", c("lhs", "est")]
+```
+
+`build_pi_layer_syntax()` and `build_group_weight_syntax()` are the functions
+that write this part of the model, should you want the syntax itself.
+
+```{r structure-syntax}
+cat(build_group_weight_syntax(c("m", "w"), "stochastic"))
+```
+
+# Hypothesis tests
+
+Every row of the ANOVA table is a hypothesis, and every hypothesis can be
+inspected on its own. `test_hypothesis()` returns both the individual contrast
+estimates and the omnibus test.
+
+```{r hypotheses}
+term_names <- vapply(fit$hypotheses, function(h) h$description, character(1))
+term_names
+
+grade_effect <- fit$hypotheses[[which(term_names == "grade")]]
+test_hypothesis(fit, grade_effect)
+```
+
+`contrast_estimates()` is the same function under a name that describes the
+other half of what it returns; use whichever reads better at the call site.
+`sd_between` is the between-person standard deviation of the effect. It says
+how much the effect varies across people, not how precisely it is estimated.
+
+```{r contrast-estimates}
+contrast_estimates(fit, grade_effect, level = 0.99)$table
+```
+
+`contrast_table()` stacks the estimates for every term at once.
+
+```{r contrast-table}
+contrast_table(fit)
+```
+
+## Custom hypotheses
+
+You are not limited to the terms of the design. Build any general linear
+hypothesis with `hypothesis()` and pass it to the same function. There is no
+separate code path for custom tests.
+
+A hypothesis is specified by up to four matrices: `M` picks out
+within-subject contrasts, `G` group contrasts, `L` covariate contrasts, and `K`
+the value tested against (zero by default). Any of them may be omitted when the
+design makes them unnecessary.
+
+Here we test a single within-subject contrast on its own:
+
+```{r custom-hypothesis}
+M <- matrix(0, nrow = length(fit$pis), ncol = 1)
+M[2, 1] <- 1
+
+my_hypothesis <- hypothesis(M = M, description = "second contrast only")
+test_hypothesis(fit, my_hypothesis)
+```
+
+`validate_hypothesis()` checks a hypothesis against a fit and fills in whatever
+can be defaulted, which is useful when building hypotheses programmatically:
+
+```{r validate-hypothesis}
+validate_hypothesis(my_hypothesis, fit)
+dim(my_hypothesis$K)
+```
+
+# Plots
+
+`plot()` visualises one term's contrast estimates. Name the term with `terms=`
+(order does not matter) or pass a hypothesis object directly.
+
+```{r plot-ci}
+plot(fit, terms = c("grade", "sentence"), interval = "ci")
+```
+
+Switching `interval` to `"sd"` shows between-person variability instead of the
+confidence interval. It shows the spread of the effect across people.
+
+```{r plot-sd}
+plot(fit, terms = "grade", interval = "sd", geom = c("point", "line"))
+```
+
+`dag()` draws the model as a SEM path diagram, laid out in the structure a
+semnova model has: residual terms, then indicators, then the latent variables
+they measure, then the contrast variables, then any covariates.
+
+Standard SEM conventions apply. Single-headed arrows are directed effects
+(loadings, regressions); double-headed arrows and self-loops are
+(co)variances. Squares are manifest variables, circles latent ones, triangles
+the constant. Fixed parameters are marked with a ring accent over the estimate.
+
+By default the diagram shows the measurement and regression structure. That is the
+part you usually want to see. A fully crossed design has a great many
+(co)variances, so drawing everything at once is rarely readable.
+
+```{r dag, fig.height = 6, fig.width = 9}
+dag(fit_cov)
+```
+
+`what` controls which parts are drawn. Give any of `"measurement"`,
+`"regression"`, `"variance"`, `"covariance"`, `"resid_var"`, `"resid_cov"`,
+`"intercept"`, or `"all"`. Residual variances appear as their own epsilon
+nodes, and intercepts as triangles:
+
+```{r dag-all, fig.height = 7.5, fig.width = 10}
+dag(fit_cov, what = c("measurement", "regression", "resid_var", "variance"))
+```
+
+Multigroup fits are drawn as facets, one panel per group, labelled with the
+group name:
+
+```{r dag-groups, fig.height = 5, fig.width = 10}
+dag(fit_between)
+```
+
+`labels` controls the estimates: `"all"` (the default) labels every parameter
+drawn. Fixed ones, such as the contrast loadings, are shown inside a ring
+accent, so design and estimate stay distinguishable. `"free"` labels only freely
+estimated parameters, which thins out a dense diagram; `"none"` gives a bare
+structural one.
+
+If a dense model looks cluttered, `x_scale` and `y_scale` stretch the node
+positions horizontally and vertically. Only their ratio matters, because
+stretching both equally gives the same diagram. The tighter direction keeps its
+spacing and the other grows away from it. Here the columns are pushed apart while the
+rows stay as they were:
+
+```{r dag-scale, fig.height = 8.1, fig.width = 12.9}
+p <- dag(fit_cov, x_scale = 1.5)
+attr(p, "fig_size") # the figure size this needs, in inches
+p
+```
+
+A scaled diagram is drawn at a physical size rather than fitted to the figure,
+so it needs a figure big enough to hold it. That is what the `fig_size`
+attribute is for, and the chunk options above were set from it. Unscaled, `dag()` fits
+whatever figure it is given, and a bigger `fig.width`/`fig.height` is the
+simplest cure for crowding.
+
+The curved paths, meaning variance self-loops and covariance arcs, are drawn
+at a fixed size and a fixed bend angle. so scaling the layout or resizing the figure
+leaves them alone. `curve_scale` is what changes them, with `variance_scale`
+and `covariance_scale` following it unless you set them yourself:
+
+```{r dag-curve, fig.height = 7, fig.width = 12}
+dag(fit_between, what = c("measurement", "regression", "variance", "covariance"),
+    curve_scale = 1.6)
+```
+
+A scaled diagram is fitted to the figure rather than cropped by it: if the
+figure is smaller than `fig_size`, you get a smaller diagram, not a piece of
+one. Since the markers and text keep their fixed size, though, a figure well
+under `fig_size` will crowd again. Scaling sets the shape, the figure gives
+the room.
+
+`dag_save()` writes a diagram to a file and crops the whitespace off it. There
+is always some: the layout is fitted to the figure, and the margins have to be
+wide enough for the labels that overhang the panel. Dimensions default to the
+plot's own `fig_size`.
+
+```{r dag-save}
+cropped <- tempfile(fileext = ".png")
+plain <- tempfile(fileext = ".png")
+
+dag_save(cropped, dag(fit_cov), dpi = 100)
+dag_save(plain, dag(fit_cov), dpi = 100, trim = FALSE)
+
+vapply(c(cropped = cropped, uncropped = plain), file.size, numeric(1))
+```
+
+Cropping needs the `magick` package and a raster format; without either the
+file is still written, uncropped, with a message saying why. `padding` sets the
+margin left around the diagram, in pixels.
+
+# Looking inside a fit
+
+`model_parameters()` is the single canonical read of a fitted model: every
+parameter, classified by type.
+
+```{r model-parameters}
+params <- model_parameters(fit_cov)
+table(params$type)
+
+head(model_parameters(fit_cov, what = "regression")[c("lhs", "rhs", "est", "se", "type")])
+```
+
+`regression_coefficients()` reshapes those into the arrays the contrast machinery
+uses: the coefficients, their sampling covariance, and the between-person
+covariance of the contrast variables.
+
+```{r regression-coefficients}
+coefs <- regression_coefficients(fit_cov)
+dim(coefs$B_array)
+dimnames(coefs$B_array)[["covariate"]]
+```
+
+The underlying `lavaan` fit is always available if you need something the
+package does not expose:
+
+```{r sem-obj}
+class(fit_cov$sem_obj)
+```
+
+# The lower-level interface
+
+`semnova()` derives the latent variables and contrast matrix from your design.
+When you want to specify them yourself, for a contrast matrix no standard
+contrast function produces, use `lgc()` directly.
+
+You supply data in wide format, the constructs and their indicators, and the
+contrast matrix.
+
+```{r lgc}
+wide <- fit$data
+custom_contrasts <- solve(cbind(1, stats::contr.poly(6)))
+
+fit_lgc <- lgc(
+    data = wide,
+    etas = fit$etas_mmodel,
+    c_matrix_within = custom_contrasts,
+    hypotheses = hypothesis(M = M, description = "custom contrast")
+)
+
+anova_table(fit_lgc)
+```
+
+Everything shown above works the same way on an `lgc()` fit. The ANOVA-style
+interface is a convenience layer, not a separate model.
+
+# Building blocks
+
+The syntax generators `semnova()` calls are exported too, for anyone who wants
+to inspect or reuse the generated `lavaan` syntax. `build_measurement_syntax()`
+writes the measurement model:
+
+```{r syntax-measurement}
+etas <- list(eta1 = c("Y1", "Y2", "Y3"))
+cat(build_measurement_syntax(etas, lv_scaling = "effect"))
+```
+
+`build_pi_layer_syntax()` writes the contrast layer, `build_covariate_syntax()`
+the covariate model and its regressions, and `build_resid_cov_syntax()` any
+residual covariances you want to allow:
+
+```{r syntax-others}
+cat(build_pi_layer_syntax(matrix(c(1, 1, 1, -1), nrow = 2), eta_names = c("eta1", "eta2")))
+
+cat(build_resid_cov_syntax(equal_resid_cov = list(c("Y1", "Y2", "Y3"))))
+```
+
+`strip_construct_structure()` removes a construct's own mean and variance lines,
+which is what lets the measurement model and the contrast layer be combined
+without specifying the same parameter twice:
+
+```{r strip}
+cat(strip_construct_structure("eta1 =~ Y1\neta1 ~~ eta1\neta1 ~ 1", "eta1"))
+```
+
+`parse_design()` turns factor columns into the contrast matrices a design
+implies, and `generate_anova_hypotheses()` crosses two designs into one
+hypothesis per model term:
+
+```{r parse-design}
+within_design <- parse_design(
+    reading_manifest,
+    factors = c("grade", "sentence"),
+    contrasts_arg = list(grade = "contr.sum", sentence = "contr.sum")
+)
+within_design$effect_names
+round(within_design$c_matrix, 3)
+```
+
+`contrast_matrix()` builds the Kronecker contrast matrix behind every test:
+
+```{r contrast-matrix}
+R <- contrast_matrix(G = matrix(1), L = matrix(1), M = M)
+dim(R$R)
+```
+
+# Parameter names
+
+Parameters carry structured labels, generated and read back by one small set of
+functions so that writing the model and reading its results can never disagree.
+
+A parameter's identity is its type and its indices, and every rendering comes
+from those: the lavaan label the model is written with, a readable text form,
+and the plotmath `dag()` draws on the arrows.
+
+```{r param-names}
+param_label("regression", pi = 2, covariate = 1, group = 1)
+param_label("regression", pi = 2, covariate = 1, group = 1, format = "text")
+param_label("regression", pi = 2, covariate = 1, group = 1, format = "plotmath")
+parse_param_label(".beta_2_1_1")
+```
+
+The labels also state their **equality constraints**. Every parameter of the
+measurement model is labelled by the same engine. An index of `0`, shown as
+`*`, means "one parameter across this whole dimension". Under strong
+within-invariance the six occasions share one loading per indicator, and the
+label says so:
+
+```{r param-invariance}
+labels <- lavaan::parTable(fit_latent$sem_obj)$label
+loadings <- unique(grep("^\\.lambda_", labels, value = TRUE))
+loadings
+pretty_label(loadings[1], format = "text") # * = shared across occasions
+```
+
+`pretty_label()` is for labels you already have as a string, such as those read
+off a fitted model; prefer `param_label(format = )` whenever you know the
+parameter's identity.
+
+`regression_labels()` enumerates one family as a positioned array: the pi-layer
+regression coefficients, `(covariate x pi x group)`. That is the array
+`regression_coefficients()` fills with estimates, and the two come from the same
+call so they cannot drift apart. Everything else in the model is named one label
+at a time, where it is written.
+
+```{r param-labels}
+regression_labels(pis = 1:2, covariates = "iq", groups = "1")[, , 1]
+```
+
+`n_occasions()` reports how many occasions a construct is measured at. The
+identification rules depend on that count.
+
+```{r n-occasions}
+n_occasions("iq", n_within_occasions = 6, covariate_names = "iq")
+```
+
+# What is not here yet
+
+These are known gaps rather than oversights:
+
+- **Power analysis**. Deferred. It will return in a later release.
+- **Marginal effects**. The old `Effect()` method is not carried over. Use
+  `plot()` on a hypothesis instead.
+
+# Session information
+
+```{r session}
+sessionInfo()
+```

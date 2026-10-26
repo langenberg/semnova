@@ -4,7 +4,7 @@ utils::globalVariables(c(
     "x", "y", "shape", "node_label", "edge_label", "edge_type", "group_label",
     "arrow_ends", "from", "to", "start_cap", "end_cap", "label_pos",
     "xend", "yend", "cap_hw_start", "cap_hh_start", "cap_rect_start",
-    "cap_hw_end", "cap_hh_end", "cap_rect_end", "label"
+    "cap_hw_end", "cap_hh_end", "cap_rect_end", "label", "bend"
 ))
 
 #' @keywords internal
@@ -175,10 +175,12 @@ dag_edge_table <- function(fit, nodes, group, residuals = TRUE, intercepts = TRU
         edges <- push(edges, v$lhs, v$lhs, "variance", label_of(v$est, v$free, v$label), ends = "both")
 
         # residual variance: an arrow from the indicator's epsilon node, plus
-        # the epsilon's own variance as a self-loop, the original's style
+        # the epsilon's own variance as a self-loop, the original's style.
+        # The arrow has its own type: it belongs to the epsilon node, which
+        # resid_cov draws as well, and must not vanish without resid_var.
         rv <- drop_fixed(pars[pars$type == "resid_var" & pars$lhs == pars$rhs, , drop = FALSE])
         eps <- paste0(".eps_", rv$lhs)
-        edges <- push(edges, eps, rv$lhs, "resid_var", rep("", nrow(rv)))
+        edges <- push(edges, eps, rv$lhs, "residual", rep("", nrow(rv)))
         edges <- push(edges, eps, eps, "resid_var", label_of(rv$est, rv$free, rv$label), ends = "both")
 
         cv <- drop_fixed(pars[pars$type == "covariance" & pars$lhs != pars$rhs, , drop = FALSE])
@@ -363,7 +365,8 @@ dag_build <- function(
         e <- dag_edge_table(fit, base_nodes, g,
             residuals = variances, intercepts = intercepts, digits = digits
         )
-        e <- e[e$edge_type %in% what, , drop = FALSE]
+        # an epsilon node always comes with its arrow into the indicator
+        e <- e[e$edge_type %in% what | (residuals & e$edge_type == "residual"), , drop = FALSE]
         if (nrow(e) == 0L) {
             return(NULL)
         }
@@ -463,6 +466,13 @@ dag_build <- function(
         arcs$cap_hw_end <- end_cap$hw
         arcs$cap_hh_end <- end_cap$hh
         arcs$cap_rect_end <- end_cap$rect
+        # Bulge away from the diagram's centre, into the free space beside the
+        # outer columns, whichever way round lavaan listed the pair. The arc
+        # bulges along (-dy, dx) by default, so flip it where that points
+        # inwards. Arcs in the central column, or level ones, keep the default.
+        outward <- sign((arcs$x + arcs$xend) / 2 - mean(range(nodes$x)))
+        side <- sign(-(arcs$yend - arcs$y)) * outward
+        arcs$bend <- ifelse(side < 0, -1, 1)
 
         p <- p + geom_dag_arc(
             data = arcs,
@@ -472,9 +482,9 @@ dag_build <- function(
                 cap_hw_start = cap_hw_start, cap_hh_start = cap_hh_start,
                 cap_rect_start = cap_rect_start,
                 cap_hw_end = cap_hw_end, cap_hh_end = cap_hh_end,
-                cap_rect_end = cap_rect_end
+                cap_rect_end = cap_rect_end, bend = bend
             ),
-            angle = 18 * covariance_scale,
+            angle = 45 * covariance_scale,
             arrow = arrow_double, label_size = edge_text_size, colour = "black"
         )
     }

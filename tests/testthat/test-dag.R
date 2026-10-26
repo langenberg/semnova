@@ -98,9 +98,29 @@ test_that("residual variance is drawn as an epsilon node feeding the indicator",
     nodes <- semnova:::dag_node_table(fit, residuals = TRUE, intercepts = TRUE)
     edges <- semnova:::dag_edge_table(fit, nodes, fit$group_labels[1])
 
+    arrows <- edges[edges$edge_type == "residual", ]
+    expect_true(all(grepl("^\\.eps_", arrows$from) & arrows$to %in% unlist(fit$etas_mmodel)))
     rv <- edges[edges$edge_type == "resid_var", ]
-    expect_true(any(grepl("^\\.eps_", rv$from) & rv$to %in% unlist(fit$etas_mmodel)))
-    expect_true(any(rv$from == rv$to)) # the epsilon's own variance, as a self-loop
+    expect_true(all(rv$from == rv$to)) # the epsilon's own variance, as a self-loop
+})
+
+test_that("an epsilon drawn for its covariances still feeds its indicator", {
+    skip_if_not_installed("ggraph")
+    rl <- reading_latent[reading_latent$indicator != "re_fix_time", ]
+    fit <- suppressWarnings(semnova(
+        data = rl, id = "id", dv = "dv", indicator = "indicator",
+        withins = c("grade", "sentence"),
+        contrasts_arg = list(grade = "contr.sum", sentence = "contr.sum"),
+        resid_cov = resid_set("fix_count")
+    ))
+    edges <- ggraph::get_edges()(dag(fit, what = c("measurement", "resid_cov"))$data)
+    eps <- unique(c(
+        edges$node1.name[edges$edge_type == "resid_cov"],
+        edges$node2.name[edges$edge_type == "resid_cov"]
+    ))
+    fed <- edges$node1.name[edges$edge_type == "residual"]
+    expect_true(length(eps) > 0L)
+    expect_true(all(eps %in% fed))
 })
 
 # ---- dag() ----------------------------------------------------------------
@@ -432,6 +452,59 @@ test_that("(co)variance curvature is untouched by x_scale/y_scale", {
                  geom_params_of(plain, "GeomDagArc")$angle)
     expect_equal(geom_params_of(stretched, "GeomDagLoop")$loop_radius,
                  geom_params_of(plain, "GeomDagLoop")$loop_radius)
+})
+
+test_that("covariance arcs bulge away from the diagram, not into it", {
+    skip_if_not_installed("ggraph")
+    rl <- reading_latent[reading_latent$indicator != "re_fix_time", ]
+    fit <- suppressWarnings(semnova(
+        data = rl, id = "id", dv = "dv", indicator = "indicator",
+        withins = c("grade", "sentence"),
+        contrasts_arg = list(grade = "contr.sum", sentence = "contr.sum"),
+        resid_cov = list(resid_set("fix_count"), resid_set("ini_land_pos"))
+    ))
+    p <- dag(fit, what = c("measurement", "resid_cov"))
+    i <- which(vapply(p$layers, function(l) class(l$geom)[1], character(1)) == "GeomDagArc")
+    arcs <- p$layers[[i]]$data
+
+    # the epsilons sit in the leftmost column, so every arc must bulge left.
+    # The bulge runs along (-dy, dx) times bend, whichever node lavaan named
+    # first.
+    expect_true(all(arcs$x == min(p$data$x)))
+    expect_true(all(-(arcs$yend - arcs$y) * arcs$bend < 0))
+})
+
+test_that("a covariance arc past 90 degrees is drawn as the major arc", {
+    df <- data.frame(
+        x = 0.5, y = 0.4, xend = 0.5, yend = 0.6, colour = "black",
+        linewidth = 0.4, linetype = 1, alpha = NA, label = "", label_size = 2.2,
+        label_colour = "grey20", label_pos = 0.5, cap_hw_start = 0,
+        cap_hh_start = 0, cap_rect_start = 0, cap_hw_end = 0, cap_hh_end = 0,
+        cap_rect_end = 0, bend = 1, stringsAsFactors = FALSE
+    )
+    fake_coord <- list(transform = function(data, panel_params) data)
+
+    f <- tempfile(fileext = ".png")
+    grDevices::png(f, width = 6, height = 6, units = "in", res = 100)
+    on.exit({
+        grDevices::dev.off()
+        unlink(f)
+    }, add = TRUE)
+    grid::grid.newpage()
+
+    bulge_of <- function(angle) {
+        grob <- semnova:::GeomDagArc$draw_panel(df, NULL, fake_coord, angle = angle)
+        arc <- grid::makeContent(grob)$children[[1L]]
+        x <- grid::convertX(arc$x, "mm", valueOnly = TRUE)
+        chord_x <- grid::convertX(grid::unit(0.5, "npc"), "mm", valueOnly = TRUE)
+        chord <- diff(grid::convertY(grid::unit(c(0.4, 0.6), "npc"), "mm", valueOnly = TRUE))
+        # signed: an upward chord with bend = 1 bulges to the left
+        (chord_x - min(x)) / chord
+    }
+
+    # the bulge is half the chord times tan(angle / 2), on the same side
+    expect_equal(bulge_of(45), tan(pi / 8) / 2, tolerance = 0.01)
+    expect_equal(bulge_of(135), tan(3 * pi / 8) / 2, tolerance = 0.01)
 })
 
 test_that("curve_scale drives both kinds, and each can be overridden", {

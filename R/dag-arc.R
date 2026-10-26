@@ -19,11 +19,11 @@ GeomDagArc <- ggplot2::ggproto("GeomDagArc", ggplot2::Geom,
         colour = "black", linewidth = 0.4, linetype = 1, alpha = NA,
         label = "", label_size = 2.2, label_colour = "grey20", label_pos = 0.5,
         cap_hw_start = 0, cap_hh_start = 0, cap_rect_start = 0,
-        cap_hw_end = 0, cap_hh_end = 0, cap_rect_end = 0
+        cap_hw_end = 0, cap_hh_end = 0, cap_rect_end = 0, bend = 1
     ),
     draw_key = ggplot2::draw_key_path,
 
-    draw_panel = function(data, panel_params, coord, angle = 18,
+    draw_panel = function(data, panel_params, coord, angle = 45,
                           arrow = NULL, label_parse = TRUE) {
         coords <- coord$transform(data, panel_params)
         grid::gTree(
@@ -69,16 +69,19 @@ makeContent.dag_arc_grob <- function(x) {
             return(grid::nullGrob())
         }
 
-        # circular arc whose tangent leaves the chord at `theta` at both ends
-        nx <- -dy / len
-        ny <- dx / len
+        # circular arc whose tangent leaves the chord at `theta` at both ends,
+        # bulging along the normal (-dy, dx), or against it when `bend` is -1
+        nx <- -dy / len * co$bend[i]
+        ny <- dx / len * co$bend[i]
         radius <- (len / 2) / sin(theta)
         cx <- (x0[i] + x1[i]) / 2 - nx * radius * cos(theta)
         cy <- (y0[i] + y1[i]) / 2 - ny * radius * cos(theta)
 
         a0 <- atan2(y0[i] - cy, x0[i] - cx)
-        a1 <- atan2(y1[i] - cy, x1[i] - cx)
-        sweep <- (a1 - a0 + pi) %% (2 * pi) - pi # the minor arc, i.e. 2 * theta
+        # the arc spans 2 * theta, clockwise when it bulges to the left of the
+        # chord. Set explicitly, since past 90 degrees it is the major arc and
+        # taking the shorter way round would draw the wrong half.
+        sweep <- -2 * theta * co$bend[i]
         angles <- seq(a0, a0 + sweep, length.out = 120)
         px <- cx + radius * cos(angles)
         py <- cy + radius * sin(angles)
@@ -137,7 +140,7 @@ makeContent.dag_arc_grob <- function(x) {
 #' @keywords internal
 #' @noRd
 geom_dag_arc <- function(mapping = NULL, data = NULL, ...,
-                         angle = 18, arrow = NULL, label_parse = TRUE,
+                         angle = 45, arrow = NULL, label_parse = TRUE,
                          inherit.aes = FALSE) {
     ggplot2::layer(
         geom = GeomDagArc, mapping = mapping, data = data,

@@ -1,3 +1,19 @@
+# semnova 0.3.0.9001
+
+## Bug fixes
+
+* `dag()` now draws the arrow from each residual (epsilon) node to its
+  indicator whenever residuals are shown. With `what = "resid_cov"` and no
+  `"resid_var"`, the epsilon nodes were drawn without these arrows.
+
+* `dag()` bends covariance arcs away from the centre of the diagram. The side
+  used to depend on the order of the pair in the model, so residual
+  covariance arcs could bend into the indicator column. The default bend
+  angle is now 45 degrees instead of 18, which separates nested arcs.
+
+* `dag()` draws arcs correctly when `covariance_scale` puts the bend angle
+  at 90 degrees or more. Such arcs were drawn on the wrong side.
+
 # semnova 0.3.0
 
 A complete rewrite of the package's internals. What the package can do is
